@@ -1,0 +1,149 @@
+[
+    {
+      "table_name": "boards",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "boards",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "timezone('utc'::text, now())",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "boards",
+      "column_name": "name",
+      "data_type": "text",
+      "column_default": "'Untitled Board'::text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "card_history",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "card_history",
+      "column_name": "card_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "card_history",
+      "column_name": "from_column",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "card_history",
+      "column_name": "to_column",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "card_history",
+      "column_name": "timestamp",
+      "data_type": "timestamp with time zone",
+      "column_default": "now()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "cards",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "cards",
+      "column_name": "column_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "cards",
+      "column_name": "title",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "cards",
+      "column_name": "description",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "cards",
+      "column_name": "color",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "cards",
+      "column_name": "due_date",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "cards",
+      "column_name": "position",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "cards",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "timezone('utc'::text, now())",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "columns",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "columns",
+      "column_name": "board_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "columns",
+      "column_name": "name",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "columns",
+      "column_name": "position",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "columns",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "timezone('utc'::text, now())",
+      "is_nullable": "NO"
+    }
+  ]
