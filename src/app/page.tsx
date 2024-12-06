@@ -111,23 +111,76 @@ export default function Home() {
 
           {/* Features Section */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-20">
-            <div className="p-6 rounded-xl bg-gray-900/50 backdrop-blur border border-white/10">
-              <h3 className="text-xl font-semibold mb-3 text-white">No Sign-up Required</h3>
-              <p className="text-white/80">
-                Start organizing instantly. Create a board and share the link.
-              </p>
+            {/* No Sign-up Card */}
+            <div className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="relative space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 shrink-0 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                    <svg 
+                      className="w-5 h-5 text-purple-400"
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white">No Sign-up Required</h3>
+                </div>
+                <p className="text-white/80 text-sm leading-relaxed text-left">
+                  Start organizing instantly. Create a board and share the link with your team.
+                  No email required.
+                </p>
+              </div>
             </div>
-            <div className="p-6 rounded-xl bg-gray-900/50 backdrop-blur border border-white/10">
-              <h3 className="text-xl font-semibold mb-3 text-white">Board Lifespan</h3>
-              <p className="text-white/80">
-                Boards only live for 2 months, so make the most of your time!
-              </p>
+
+            {/* Board Lifespan Card */}
+            <div className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="relative space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 shrink-0 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                    <svg 
+                      className="w-5 h-5 text-blue-400"
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white">Board Lifespan</h3>
+                </div>
+                <p className="text-white/80 text-sm leading-relaxed text-left">
+                  Boards automatically expire after 2 months, keeping your workspace clean 
+                  and focused on active projects.
+                </p>
+              </div>
             </div>
-            <div className="p-6 rounded-xl bg-gray-900/50 backdrop-blur border border-white/10">
-              <h3 className="text-xl font-semibold mb-3 text-white">Mobile Friendly</h3>
-              <p className="text-white/80">
-                Access your boards from any device, anywhere.
-              </p>
+
+            {/* Mobile Friendly Card */}
+            <div className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]">
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="relative space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 shrink-0 rounded-xl bg-green-500/10 flex items-center justify-center">
+                    <svg 
+                      className="w-5 h-5 text-green-400"
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white">Mobile Friendly</h3>
+                </div>
+                <p className="text-white/80 text-sm leading-relaxed text-left">
+                  Access and manage your boards from any device. Responsive design ensures 
+                  a seamless experience everywhere.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -136,7 +189,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="relative py-6 text-center text-white/60">
         <div className="flex flex-col gap-2">
-          <p>Built with Next.js and Tailwind CSS by <a href="https://www.linkedin.com/in/tron-schell-aa0856181/" className="text-blue-500">Tron Schell</a></p>
+          <p>Built by <a href="https://www.linkedin.com/in/tron-schell-aa0856181/" className="text-blue-500">Tron Schell</a></p>
           <div className="flex justify-center gap-4 text-sm">
             <Link href="/about" className="hover:text-white transition-colors">About</Link>
             <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>

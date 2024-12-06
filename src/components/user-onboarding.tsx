@@ -4,12 +4,14 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { GradientBackground } from '@/components/ui/gradient-background'
+import { useAnalytics } from '@/hooks/use-analytics'
 
 export default function UserOnboarding() {
   const [boardName, setBoardName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+  const { trackEvent } = useAnalytics()
 
   const handleCreateBoard = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,6 +27,12 @@ export default function UserOnboarding() {
         .single()
 
       if (boardError) throw boardError
+
+      // Track board creation
+      trackEvent('create_board', {
+        board_id: board.id,
+        board_name: boardName.trim(),
+      })
 
       // Create default columns
       const { error: columnsError } = await supabase

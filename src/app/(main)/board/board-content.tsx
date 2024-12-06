@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Plus } from 'lucide-react'
 import { DragDropContext } from 'react-beautiful-dnd'
 import type { Card } from '@/types'
+import { useAnalytics } from '@/hooks/use-analytics';
 
 const recordCardHistory = async (
   supabase: any,
@@ -44,6 +45,7 @@ export default function BoardContent() {
   const [columns, setColumns] = useState<Array<{ id: string; name: string }>>([])
   const [backlogColumnId, setBacklogColumnId] = useState<string | null>(null);
   const supabase = createClient()
+  const { trackEvent } = useAnalytics();
 
   useEffect(() => {
     const initializeBacklog = async () => {
@@ -275,6 +277,45 @@ export default function BoardContent() {
       console.error('Error moving card:', error);
     }
   };
+
+  // Add tracking to card creation
+  const handleAddCard = async (columnId: string, cardData: {
+    title: string
+    description: string
+    color: string | null
+    due_date: string | null
+  }) => {
+    const newPosition = boardCards.filter(card => card.column_id === columnId).length
+
+    const { data: card } = await supabase
+      .from('cards')
+      .insert({
+        column_id: columnId,
+        title: cardData.title,
+        description: cardData.description,
+        color: cardData.color,
+        due_date: cardData.due_date,
+        position: newPosition,
+      })
+      .select()
+      .single()
+
+    if (card) {
+      setBoardCards([...boardCards, card])
+      
+      // Track card creation
+      trackEvent('create_card', {
+        card_id: card.id,
+        column_id: columnId,
+      });
+
+      // Scroll the new card into view
+      setTimeout(() => {
+        const cardElement = document.getElementById(`card-${card.id}`)
+        cardElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }, 100)
+    }
+  }
 
   if (!boardId) {
     return (
