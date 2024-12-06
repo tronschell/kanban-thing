@@ -25,6 +25,17 @@ export function GradientBackground() {
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
 
+    // Calculate scale based on viewport width
+    const getScale = () => {
+      const width = window.innerWidth
+      if (width < 640) { // sm breakpoint
+        return 0.6 // 60% scale for mobile
+      } else if (width < 768) { // md breakpoint
+        return 0.8 // 80% scale for tablets
+      }
+      return 1 // 100% scale for desktop
+    }
+
     const resizeCanvas = () => {
       const dpr = window.devicePixelRatio || 1
       const rect = canvas.getBoundingClientRect()
@@ -60,12 +71,8 @@ export function GradientBackground() {
     }
 
     // Create gradient for main blob with color transition
-    const createMainGradient = (x: number, y: number, currentColor: { r: number, g: number, b: number }) => {
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, 800) // Increased size
-      
-      // Create random offset for gradient center
-      const offsetX = Math.cos(rotation * 2) * 100
-      const offsetY = Math.sin(rotation * 2) * 100
+    const createMainGradient = (x: number, y: number, currentColor: { r: number, g: number, b: number }, radius: number) => {
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 2)
       
       gradient.addColorStop(0, `rgba(${currentColor.r}, ${currentColor.g}, ${currentColor.b}, 0.4)`)
       gradient.addColorStop(0.3, `rgba(${currentColor.r}, ${currentColor.g}, ${currentColor.b}, 0.3)`)
@@ -76,8 +83,8 @@ export function GradientBackground() {
     }
 
     // Create gradient for secondary blobs
-    const createSecondaryGradient = (x: number, y: number, colors: string[]) => {
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, 500)
+    const createSecondaryGradient = (x: number, y: number, colors: string[], radius: number) => {
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 1.25)
       gradient.addColorStop(0, colors[0])
       gradient.addColorStop(0.3, colors[1])
       gradient.addColorStop(0.6, colors[2])
@@ -89,10 +96,11 @@ export function GradientBackground() {
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+      const scale = getScale()
       const centerX = window.innerWidth / 2
       const centerY = window.innerHeight / 2
-      const radius = 400 // Increased center blob size
-      const orbitRadius = 500
+      const baseRadius = 400 * scale // Scale the base radius
+      const baseOrbitRadius = 500 * scale // Scale the orbit radius
 
       // Update color transition
       colorTransition += colorTransitionSpeed
@@ -109,15 +117,15 @@ export function GradientBackground() {
         colorTransition
       )
 
-      // Draw main blob with color transition
+      // Draw main blob with scaled dimensions
       ctx.beginPath()
-      ctx.fillStyle = createMainGradient(centerX, centerY, currentColor)
-      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2)
+      ctx.fillStyle = createMainGradient(centerX, centerY, currentColor, baseRadius)
+      ctx.arc(centerX, centerY, baseRadius, 0, Math.PI * 2)
       ctx.fill()
 
-      // Draw rotating blobs
-      const x1 = centerX + Math.cos(rotation) * orbitRadius
-      const y1 = centerY + Math.sin(rotation) * orbitRadius
+      // Draw rotating blobs with scaled dimensions
+      const x1 = centerX + Math.cos(rotation) * baseOrbitRadius
+      const y1 = centerY + Math.sin(rotation) * baseOrbitRadius
       ctx.beginPath()
       ctx.fillStyle = createSecondaryGradient(
         x1, y1, [
@@ -125,13 +133,14 @@ export function GradientBackground() {
           'rgba(168, 85, 247, 0.2)',
           'rgba(139, 92, 246, 0.15)',
           'rgba(139, 92, 246, 0.1)'
-        ]
+        ],
+        baseRadius
       )
-      ctx.arc(x1, y1, radius * 0.8, 0, Math.PI * 2)
+      ctx.arc(x1, y1, baseRadius * 0.8, 0, Math.PI * 2)
       ctx.fill()
 
-      const x2 = centerX + Math.cos(rotation + Math.PI) * orbitRadius
-      const y2 = centerY + Math.sin(rotation + Math.PI) * orbitRadius
+      const x2 = centerX + Math.cos(rotation + Math.PI) * baseOrbitRadius
+      const y2 = centerY + Math.sin(rotation + Math.PI) * baseOrbitRadius
       ctx.beginPath()
       ctx.fillStyle = createSecondaryGradient(
         x2, y2, [
@@ -139,9 +148,10 @@ export function GradientBackground() {
           'rgba(52, 211, 153, 0.2)',
           'rgba(16, 185, 129, 0.15)',
           'rgba(16, 185, 129, 0.1)'
-        ]
+        ],
+        baseRadius
       )
-      ctx.arc(x2, y2, radius * 0.8, 0, Math.PI * 2)
+      ctx.arc(x2, y2, baseRadius * 0.8, 0, Math.PI * 2)
       ctx.fill()
 
       rotation += rotationSpeed
@@ -161,7 +171,7 @@ export function GradientBackground() {
       ref={canvasRef}
       className="fixed inset-0 w-full h-full"
       style={{ 
-        filter: 'blur(120px) saturate(1.1)', // Reduced saturation for muted colors
+        filter: 'blur(120px) saturate(1.1)', 
         willChange: 'transform'
       }}
     />
