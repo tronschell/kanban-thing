@@ -17,9 +17,9 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: {
     template: '%s | KanbanThing',
-    default: 'KanbanThing - Simple Kanban Board Tool'
+    default: 'KanbanThing - Simple Free Kanban Board Tool'
   },
-  description: 'A simple, efficient Kanban board application designed to help individuals and teams organize their work effectively.',
+  description: 'A simple, free, and efficient Kanban board application designed to help individuals and teams organize their work effectively.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://kanbanthing.com'),
   openGraph: {
     type: 'website',

@@ -18,7 +18,7 @@ export default function AboutContent() {
         price: '0',
         priceCurrency: 'USD'
       },
-      description: 'A simple, efficient Kanban board application designed to help individuals and teams organize their work effectively.'
+      description: 'A simple, free, and efficient Kanban board application designed to help individuals and teams organize their work effectively.'
     }
   }
 
@@ -39,7 +39,7 @@ export default function AboutContent() {
             
             <div className="prose prose-invert max-w-none">
               <p>
-                KanbanThing is a simple, efficient Kanban board application designed to help individuals 
+                KanbanThing is a simple, free, and efficient Kanban board application designed to help individuals 
                 and teams organize their work effectively. Built with modern web technologies, it offers 
                 a seamless experience for managing tasks and projects.
               </p>
