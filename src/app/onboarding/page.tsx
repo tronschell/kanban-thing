@@ -1,11 +1,15 @@
 'use client'
 
+import { Suspense } from 'react'
 import { UserOnboarding } from '@/components'
+import { LoadingSpinner } from '@/components/ui'
 
 export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-gray-950">
-      <UserOnboarding />
+      <Suspense fallback={<LoadingSpinner />}>
+        <UserOnboarding />
+      </Suspense>
     </div>
   )
 } 
