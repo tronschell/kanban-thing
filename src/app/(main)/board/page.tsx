@@ -12,12 +12,18 @@ export default function BoardPage() {
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
 
   useEffect(() => {
-    // Check authorization status immediately
-    const checkAuth = () => {
+    const checkAuth = async () => {
+      console.log('Checking auth...')
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       const userId = localStorage.getItem('kanban_user_id')
+      console.log('UserId:', userId)
+      
       if (!userId) {
+        console.log('Redirecting to onboarding...')
         router.replace('/onboarding')
       } else {
+        console.log('User authorized')
         setIsAuthorized(true)
       }
     }

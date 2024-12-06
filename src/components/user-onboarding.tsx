@@ -19,7 +19,7 @@ export default function UserOnboarding() {
 
     setIsCreating(true)
     try {
-      // Create the board
+      console.log('Creating board...')
       const { data: board, error: boardError } = await supabase
         .from('boards')
         .insert({ name: boardName.trim() })
@@ -27,6 +27,7 @@ export default function UserOnboarding() {
         .single()
 
       if (boardError) throw boardError
+      console.log('Board created with ID:', board.id)
 
       // Track board creation
       trackEvent('create_board', {
@@ -45,8 +46,13 @@ export default function UserOnboarding() {
 
       if (columnsError) throw columnsError
 
-      // Redirect to the new board
-      router.push(`/board?id=${board.id}`)
+      console.log('Setting localStorage...')
+      localStorage.setItem('kanban_user_id', board.id)
+      
+      await new Promise(resolve => setTimeout(resolve, 100))
+      console.log('Navigating to:', `/board?id=${board.id}`)
+      
+      router.replace(`/board?id=${board.id}`)
     } catch (error) {
       console.error('Error creating board:', error)
       setIsCreating(false)
