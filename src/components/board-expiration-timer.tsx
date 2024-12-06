@@ -34,8 +34,9 @@ export function BoardExpirationTimer({ expiresAt }: BoardExpirationTimerProps) {
   }, [expiresAt])
 
   return (
-    <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 text-xs sm:text-sm">
-      <span className="text-gray-500 dark:text-gray-400">
+    <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white/50 dark:bg-gray-800/50 
+                    border border-gray-200/50 dark:border-gray-700/50 text-xs">
+      <span className="text-gray-500 dark:text-gray-400 hidden sm:inline">
         Expires:
       </span>
       <span className={`

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Copy, Check, LinkIcon, Menu, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Copy, Check, LinkIcon, Menu, Trash2, Terminal as TerminalIcon } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -12,9 +12,14 @@ import { BoardExpirationTimer } from '@/components/board-expiration-timer'
 import { useBoardExpiration } from '@/hooks/use-board-expiration'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui'
+import { TerminalInterface } from '@/components/terminal-interface'
+import { Card } from '@/types'
 
 interface NavbarProps {
   boardId?: string
+  setBoardCards?: React.Dispatch<React.SetStateAction<Card[]>>
+  setBacklogCards?: React.Dispatch<React.SetStateAction<Card[]>>
+  backlogColumnId?: string | null
 }
 
 interface NavItem {
@@ -38,15 +43,96 @@ const iconVariants = {
   transition: { duration: 0.2 }
 }
 
-export default function Navbar({ boardId }: NavbarProps) {
+interface CommandResponse {
+  success: boolean
+  message: string
+}
+
+const DEFAULT_COLORS = [
+  '#ef4444', // red
+  '#f97316', // orange
+  '#eab308', // yellow
+  '#22c55e', // green
+  '#3b82f6', // blue
+  '#a855f7', // purple
+  '#ec4899', // pink
+]
+
+// Helper function to get a random color
+const getRandomColor = () => {
+  return DEFAULT_COLORS[Math.floor(Math.random() * DEFAULT_COLORS.length)]
+}
+
+export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlogColumnId }: NavbarProps) {
   const [copied, setCopied] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false)
+  const [boardColumns, setBoardColumns] = useState<Array<{ id: string; name: string }>>([])
   const router = useRouter()
   const url = boardId ? `${window.location.origin}/board?id=${boardId}` : ''
   const displayUrl = url ? url.replace(/^https?:\/\//, '').slice(0, 24) + '...' : ''
   const expiresAt = useBoardExpiration(boardId)
   const supabase = createClient()
+  const [allCards, setAllCards] = useState<Card[]>([])
+
+  // Preload columns when the component mounts or boardId changes
+  useEffect(() => {
+    const loadColumns = async () => {
+      if (!boardId) return
+
+      const { data: columns, error } = await supabase
+        .from('columns')
+        .select('id, name')
+        .eq('board_id', boardId)
+        .order('position')
+
+      if (!error && columns) {
+        setBoardColumns(columns)
+      }
+    }
+
+    loadColumns()
+  }, [boardId])
+
+  // Load all cards when component mounts
+  useEffect(() => {
+    const loadCards = async () => {
+      if (!boardId) return
+
+      const { data: cards } = await supabase
+        .from('cards')
+        .select(`
+          id,
+          title,
+          column_id,
+          description,
+          color,
+          due_date,
+          position,
+          created_at,
+          columns!inner (
+            board_id
+          )
+        `)
+        .eq('columns.board_id', boardId)
+        .order('title')
+
+      if (cards) {
+        console.log('Loaded cards:', cards)
+        setAllCards(cards as Card[])
+      }
+    }
+
+    loadCards()
+  }, [boardId])
+
+  // Helper function to find column by name (case-insensitive)
+  const findColumnByName = (name: string) => {
+    return boardColumns.find(col => 
+      col.name.toLowerCase() === name.toLowerCase()
+    )
+  }
 
   const handleCopy = async () => {
     if (!url) return;
@@ -82,6 +168,324 @@ export default function Navbar({ boardId }: NavbarProps) {
     }
   }
 
+  const handleTerminalCommand = async (command: string): Promise<CommandResponse> => {
+    if (!boardId) {
+      return {
+        success: false,
+        message: 'No board selected'
+      }
+    }
+
+    const parts = command.toLowerCase().split(' ')
+    const action = parts[0]
+
+    // Command aliases mapping
+    const commandAliases: Record<string, string> = {
+      'cr': 'create',
+      'dl': 'delete',
+      'mv': 'move',
+      'l': 'list',
+      'h': 'help'
+    }
+
+    // Resolve alias to full command
+    const resolvedAction = commandAliases[action] || action
+
+    try {
+      switch (resolvedAction) {
+        case 'create': {
+          // create/cr {Task name} [in {Column name}]
+          const inIndex = parts.findIndex(part => part === 'in')
+          
+          // Extract the title - if 'in' is not found, take all parts after the command
+          const title = inIndex === -1 
+            ? parts.slice(1).join(' ').split('--')[0].trim()
+            : parts.slice(1, inIndex).join(' ')
+
+          // If no column specified, use Backlog
+          let columnName = 'Backlog'
+          if (inIndex !== -1 && inIndex < parts.length - 1) {
+            columnName = parts.slice(inIndex + 1).join(' ').split('--')[0].trim()
+          }
+
+          // Find column using our helper function
+          const column = findColumnByName(columnName)
+          if (!column) {
+            const availableColumns = boardColumns
+              .map(col => `"${col.name}"`)
+              .join(', ')
+            return {
+              success: false,
+              message: `Column "${columnName}" not found. Available columns: ${availableColumns}`
+            }
+          }
+
+          // Parse optional arguments
+          const fullCommand = command.toLowerCase()
+          let description = ''
+          let color = getRandomColor()
+
+          // Extract description if provided
+          const descMatch = fullCommand.match(/--desc\s+"([^"]+)"/)
+          if (descMatch) {
+            description = descMatch[1]
+          }
+
+          // Extract color if provided
+          const colorMatch = fullCommand.match(/--color\s+(#[0-9a-f]{6}|#[0-9a-f]{3})/i)
+          if (colorMatch) {
+            color = colorMatch[1]
+          }
+
+          // Create the card
+          const { data: card, error } = await supabase
+            .from('cards')
+            .insert({
+              column_id: column.id,
+              title: title,
+              description: description || null,
+              color: color,
+              position: 0
+            })
+            .select('*')
+            .single()
+
+          if (error) throw error
+
+          // Update the appropriate state based on which column the card was created in
+          if (card) {
+            if (column.id === backlogColumnId && setBacklogCards) {
+              setBacklogCards(prev => [...prev, card])
+            } else if (setBoardCards) {
+              setBoardCards(prev => [...prev, card])
+            }
+          }
+
+          // Build success message
+          let successMessage = `Created card "${title}" in column "${column.name}"`
+          if (description) {
+            successMessage += `\nDescription: ${description}`
+          }
+          successMessage += `\nColor: ${color}`
+
+          return {
+            success: true,
+            message: successMessage
+          }
+        }
+
+        case 'move': {
+          // move/mv {Task name} to {Column name}
+          const toIndex = parts.findIndex(part => part === 'to')
+          if (toIndex === -1 || toIndex === 1 || toIndex === parts.length - 1) {
+            return {
+              success: false,
+              message: 'Invalid command format. Use: move {Task name} to {Column name}'
+            }
+          }
+
+          const cardTitle = parts.slice(1, toIndex).join(' ')
+          const columnName = parts.slice(toIndex + 1).join(' ')
+
+          // Find column using our helper function
+          const column = findColumnByName(columnName)
+          if (!column) {
+            const availableColumns = boardColumns
+              .map(col => `"${col.name}"`)
+              .join(', ')
+            return {
+              success: false,
+              message: `Column "${columnName}" not found. Available columns: ${availableColumns}`
+            }
+          }
+
+          // Find the card by title
+          const { data: card } = await supabase
+            .from('cards')
+            .select('*')
+            .eq('title', cardTitle)
+            .single()
+
+          if (!card) {
+            return {
+              success: false,
+              message: `Card "${cardTitle}" not found`
+            }
+          }
+
+          const { error } = await supabase
+            .from('cards')
+            .update({ column_id: column.id })
+            .eq('id', card.id)
+
+          if (error) throw error
+
+          // Update states based on source and destination columns
+          if (setBoardCards && setBacklogCards) {
+            const isFromBacklog = card.column_id === backlogColumnId
+            const isToBacklog = column.id === backlogColumnId
+
+            if (isFromBacklog && !isToBacklog) {
+              // Moving from backlog to board
+              setBacklogCards(prev => prev.filter(c => c.id !== card.id))
+              setBoardCards(prev => [...prev, { ...card, column_id: column.id }])
+            } else if (!isFromBacklog && isToBacklog) {
+              // Moving from board to backlog
+              setBoardCards(prev => prev.filter(c => c.id !== card.id))
+              setBacklogCards(prev => [...prev, { ...card, column_id: column.id }])
+            } else if (!isFromBacklog && !isToBacklog) {
+              // Moving within board
+              setBoardCards(prev => prev.map(c => 
+                c.id === card.id ? { ...c, column_id: column.id } : c
+              ))
+            } else {
+              // Moving within backlog (shouldn't happen, but handle anyway)
+              setBacklogCards(prev => prev.map(c => 
+                c.id === card.id ? { ...c, column_id: column.id } : c
+              ))
+            }
+          }
+
+          return {
+            success: true,
+            message: `Moved card "${cardTitle}" to column "${column.name}"`
+          }
+        }
+
+        case 'list': {
+          // list/l - shows both cards and columns
+          // First get all columns in this board
+          const { data: columns } = await supabase
+            .from('columns')
+            .select('id, name')
+            .eq('board_id', boardId)
+            .order('position')
+
+          if (!columns?.length) {
+            return {
+              success: true,
+              message: 'No columns found in this board'
+            }
+          }
+
+          // Get column IDs for this board
+          const columnIds = columns.map(col => col.id)
+
+          // List all cards in the board's columns
+          const { data: cards, error } = await supabase
+            .from('cards')
+            .select(`
+              id,
+              title,
+              column_id,
+              position
+            `)
+            .in('column_id', columnIds)
+            .order('position')
+
+          if (error) throw error
+
+          // Group cards by column
+          const cardsByColumn = new Map<string, typeof cards>()
+          columns.forEach(col => cardsByColumn.set(col.id, []))
+          cards?.forEach(card => {
+            const columnCards = cardsByColumn.get(card.column_id)
+            if (columnCards) {
+              columnCards.push(card)
+            }
+          })
+
+          // Format the output in a compact way
+          const formatList = () => {
+            return columns.map(column => {
+              const columnCards = cardsByColumn.get(column.id) || []
+              const cardList = columnCards.length 
+                ? columnCards.map(card => `  - ${card.title}`).join('\n')
+                : '  - (empty)'
+              
+              return `${column.name.toUpperCase()}:\n${cardList}`
+            }).join('\n\n')
+          }
+
+          return {
+            success: true,
+            message: columns.length 
+              ? formatList()
+              : 'No columns found in this board'
+          }
+        }
+
+        case 'delete': {
+          // delete/dl {Task name}
+          const cardTitle = parts.slice(1).join(' ')
+
+          // Find the card by title
+          const { data: card } = await supabase
+            .from('cards')
+            .select('*')  // Get all fields to know which state to update
+            .eq('title', cardTitle)
+            .single()
+
+          if (!card) {
+            return {
+              success: false,
+              message: `Card "${cardTitle}" not found`
+            }
+          }
+
+          const { error } = await supabase
+            .from('cards')
+            .delete()
+            .eq('id', card.id)
+
+          if (error) throw error
+
+          // Update the appropriate state
+          if (card.column_id === backlogColumnId && setBacklogCards) {
+            setBacklogCards(prev => prev.filter(c => c.id !== card.id))
+          } else if (setBoardCards) {
+            setBoardCards(prev => prev.filter(c => c.id !== card.id))
+          }
+
+          return {
+            success: true,
+            message: `Deleted card "${cardTitle}"`
+          }
+        }
+
+        case 'help':
+          return {
+            success: true,
+            message: `Available commands:
+create (cr) {Task name} [in {Column name}] [--desc "description"] [--color #hexcode]
+move (mv) {Task name} to {Column name}
+delete (dl) {Task name}
+list (l)
+help (h)
+
+Note: If no column is specified in create command, card will be created in Backlog.`
+          }
+
+        default:
+          return {
+            success: false,
+            message: 'Unknown command. Type "help" or "h" for available commands.'
+          }
+      }
+    } catch (error) {
+      console.error('Terminal command error:', error)
+      return {
+        success: false,
+        message: 'An error occurred while executing the command'
+      }
+    }
+
+    return {
+      success: false,
+      message: 'Invalid command format. Type "help" or "h" for available commands.'
+    }
+  }
+
   return (
     <>
       <div className="sticky top-0 z-50 pt-4">
@@ -97,6 +501,8 @@ export default function Navbar({ boardId }: NavbarProps) {
           {/* Share Section with Timer and Delete Button */}
           {boardId && (
             <div className="flex items-center gap-1 sm:gap-2 mr-2">
+
+
               <motion.button
                 onClick={() => setIsDeleteModalOpen(true)}
                 className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
@@ -108,6 +514,20 @@ export default function Navbar({ boardId }: NavbarProps) {
                 title="Delete Board"
               >
                 <Trash2 className="h-4 w-4 text-red-500" />
+              </motion.button>
+
+              <motion.button
+                onClick={() => setIsTerminalOpen(true)}
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
+                  bg-white/50 dark:bg-gray-800/50 
+                  border border-gray-200/50 dark:border-gray-700/50 
+                  hover:bg-gray-50 dark:hover:bg-gray-700/50 
+                  transition-colors group cursor-pointer"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                title="Open Terminal"
+              >
+                <TerminalIcon className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
               </motion.button>
 
               {/* Existing share button */}
@@ -155,6 +575,15 @@ export default function Navbar({ boardId }: NavbarProps) {
           )}
         </div>
       </div>
+
+      {/* Add Terminal Interface */}
+      <TerminalInterface
+        isOpen={isTerminalOpen}
+        onClose={() => setIsTerminalOpen(false)}
+        onCommand={handleTerminalCommand}
+        availableCards={allCards}
+        availableColumns={boardColumns}
+      />
 
       {/* Delete Confirmation Modal */}
       <Modal

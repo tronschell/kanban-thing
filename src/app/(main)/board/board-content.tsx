@@ -49,40 +49,64 @@ export default function BoardContent() {
 
   useEffect(() => {
     const initializeBacklog = async () => {
-      const { data: column, error: fetchError } = await supabase
-        .from('columns')
-        .select('id')
-        .eq('board_id', boardId)
-        .eq('name', 'Backlog')
-        .single();
+      if (!boardId) return;
 
-      if (fetchError && fetchError.code === 'PGRST116') {
-        const { data: newColumn, error: createError } = await supabase
+      try {
+        // First try to find existing backlog column
+        const { data: column, error: fetchError } = await supabase
           .from('columns')
-          .insert({
-            board_id: boardId,
-            name: 'Backlog',
-            position: -1
-          })
           .select('id')
+          .eq('board_id', boardId)
+          .eq('name', 'Backlog')
           .single();
 
-        if (createError) {
-          console.error('Error creating backlog column:', createError);
-          return;
-        }
+        if (fetchError) {
+          if (fetchError.code === 'PGRST116') {
+            // Create backlog column if it doesn't exist
+            const { data: newColumn, error: createError } = await supabase
+              .from('columns')
+              .insert({
+                board_id: boardId,
+                name: 'Backlog',
+                position: -1
+              })
+              .select('id')
+              .single();
 
-        if (newColumn) {
-          setBacklogColumnId(newColumn.id);
+            if (createError) {
+              if (createError.code === '23505') { // Unique violation
+                // Try fetching again in case of race condition
+                const { data: retryColumn } = await supabase
+                  .from('columns')
+                  .select('id')
+                  .eq('board_id', boardId)
+                  .eq('name', 'Backlog')
+                  .single();
+
+                if (retryColumn) {
+                  setBacklogColumnId(retryColumn.id);
+                }
+              } else {
+                console.error('Error creating backlog column:', createError);
+              }
+              return;
+            }
+
+            if (newColumn) {
+              setBacklogColumnId(newColumn.id);
+            }
+          } else {
+            console.error('Error fetching backlog column:', fetchError);
+          }
+        } else if (column) {
+          setBacklogColumnId(column.id);
         }
-      } else if (column) {
-        setBacklogColumnId(column.id);
+      } catch (error) {
+        console.error('Error in initializeBacklog:', error);
       }
     };
 
-    if (boardId) {
-      initializeBacklog();
-    }
+    initializeBacklog();
   }, [boardId]);
 
   const handleDragEnd = async (result: any) => {
@@ -359,7 +383,12 @@ export default function BoardContent() {
 
   return (
     <div className="flex flex-col min-h-full container mx-auto px-4 sm:px-6 pb-4 sm:pb-8 min-w-[320px]">
-      <Navbar boardId={boardId} />
+      <Navbar 
+        boardId={boardId} 
+        setBoardCards={setBoardCards}
+        setBacklogCards={setBacklogCards}
+        backlogColumnId={backlogColumnId}
+      />
       <main className="flex-1">
         <div className="h-full overflow-y-auto">
           <div className="pt-4">
@@ -375,7 +404,7 @@ export default function BoardContent() {
                 <div className="mt-4 sm:mt-6">
                   {currentView === 'kanban' && (
                     <div className="flex flex-col gap-6 sm:gap-8">
-                      <div className="overflow-x-auto overflow-y-visible pb-4 -mx-4 px-4 sm:mx-0 sm:px-0
+                      <div className="overflow-x-auto overflow-y-visible pb-4 sm:mx-0 sm:px-0
                         scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700
                         scrollbar-track-transparent">
                         <div className="min-w-[768px] sm:min-w-0">

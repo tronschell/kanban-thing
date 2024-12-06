@@ -577,7 +577,7 @@ export default function KanbanBoard({
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 py-6">
       {/* Board Header */}
       <div className="flex items-center gap-4">
         {isEditingName ? (
