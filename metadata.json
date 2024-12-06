@@ -1,5 +1,40 @@
 [
     {
+      "table_name": "board_users",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "board_users",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "board_users",
+      "column_name": "board_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "board_users",
+      "column_name": "role",
+      "data_type": "text",
+      "column_default": "'member'::text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "board_users",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "timezone('utc'::text, now())",
+      "is_nullable": "NO"
+    },
+    {
       "table_name": "boards",
       "column_name": "id",
       "data_type": "uuid",
@@ -141,6 +176,34 @@
     },
     {
       "table_name": "columns",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "timezone('utc'::text, now())",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "users",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "users",
+      "column_name": "name",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "users",
+      "column_name": "avatar",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
       "column_name": "created_at",
       "data_type": "timestamp with time zone",
       "column_default": "timezone('utc'::text, now())",

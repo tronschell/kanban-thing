@@ -1,98 +1,89 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-
-interface User {
-  id: string
-  name: string
-  created_at: string
-}
+import { createClient } from '@/lib/supabase/client'
+import { GradientBackground } from '@/components/ui/gradient-background'
 
 export default function UserOnboarding() {
-  const [userName, setUserName] = useState<string>('')
-  const [isComplete, setIsComplete] = useState(false)
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const supabase = createClient()
+  const [boardName, setBoardName] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
   const router = useRouter()
+  const supabase = createClient()
 
-  useEffect(() => {
-    const checkExistingUser = async () => {
-      const savedUserId = localStorage.getItem('kanban_user_id')
-      
-      if (savedUserId) {
-        const { data: user, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', savedUserId)
-          .single()
-
-        if (user && !error) {
-          setCurrentUser(user)
-          setIsComplete(true)
-        } else {
-          localStorage.removeItem('kanban_user_id')
-        }
-      }
-    }
-
-    checkExistingUser()
-  }, [])
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCreateBoard = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!boardName.trim() || isCreating) return
 
+    setIsCreating(true)
     try {
-      const { data: user, error } = await supabase
-        .from('users')
-        .insert({
-          name: userName.trim()
-        })
-        .select()
+      // Create the board
+      const { data: board, error: boardError } = await supabase
+        .from('boards')
+        .insert({ name: boardName.trim() })
+        .select('id')
         .single()
 
-      if (error) throw error
+      if (boardError) throw boardError
 
-      if (user) {
-        localStorage.setItem('kanban_user_id', user.id)
-        setCurrentUser(user)
-        setIsComplete(true)
-        router.push('/board') // Redirect to board creation page
-      }
+      // Create default columns
+      const { error: columnsError } = await supabase
+        .from('columns')
+        .insert([
+          { board_id: board.id, name: 'To Do', position: 0 },
+          { board_id: board.id, name: 'In Progress', position: 1 },
+          { board_id: board.id, name: 'Done', position: 2 }
+        ])
+
+      if (columnsError) throw columnsError
+
+      // Redirect to the new board
+      router.push(`/board?id=${board.id}`)
     } catch (error) {
-      console.error('Error creating user:', error)
+      console.error('Error creating board:', error)
+      setIsCreating(false)
     }
   }
 
-  if (isComplete) return null
-
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg max-w-md w-full">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">
-          Welcome to Kanban
+    <div className="fixed inset-0 flex items-center justify-center">
+      {/* Background layer */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0">
+        <GradientBackground />
+      </div>
+      
+      {/* Content layer - higher z-index */}
+      <div className="relative z-10 bg-white/30 dark:bg-gray-900/30 backdrop-blur-md p-8 rounded-xl max-w-md w-full shadow-xl border border-white/20">
+        <h2 className="text-2xl font-bold mb-6 text-white">
+          Create Your First Board
         </h2>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleCreateBoard} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-              Your Name
+            <label 
+              htmlFor="boardName" 
+              className="block text-sm font-medium text-gray-100 mb-2"
+            >
+              Board Name
             </label>
             <input
+              id="boardName"
               type="text"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+              value={boardName}
+              onChange={(e) => setBoardName(e.target.value)}
+              className="w-full p-2 border rounded-lg bg-white/10 border-white/20 text-white placeholder-gray-400"
+              placeholder="Enter board name"
               required
-              minLength={2}
-              placeholder="Enter your name"
+              disabled={isCreating}
+              autoFocus
             />
           </div>
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={isCreating}
+            className="w-full bg-white/20 text-white py-3 rounded-lg hover:bg-white/30 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Get Started
+            {isCreating ? 'Creating Board...' : 'Create Board'}
           </button>
         </form>
       </div>

@@ -1,0 +1,66 @@
+[
+    {
+      "table_schema": "public",
+      "constraint_name": "board_users_board_id_fkey",
+      "source_table": "board_users",
+      "source_column": "board_id",
+      "target_table": "boards",
+      "target_column": "id"
+    },
+    {
+      "table_schema": "public",
+      "constraint_name": "board_users_user_id_fkey",
+      "source_table": "board_users",
+      "source_column": "user_id",
+      "target_table": "users",
+      "target_column": "id"
+    },
+    {
+      "table_schema": "public",
+      "constraint_name": "card_history_card_id_fkey",
+      "source_table": "card_history",
+      "source_column": "card_id",
+      "target_table": "cards",
+      "target_column": "id"
+    },
+    {
+      "table_schema": "public",
+      "constraint_name": "card_tags_card_id_fkey",
+      "source_table": "card_tags",
+      "source_column": "card_id",
+      "target_table": "cards",
+      "target_column": "id"
+    },
+    {
+      "table_schema": "public",
+      "constraint_name": "card_tags_tag_id_fkey",
+      "source_table": "card_tags",
+      "source_column": "tag_id",
+      "target_table": "tags",
+      "target_column": "id"
+    },
+    {
+      "table_schema": "public",
+      "constraint_name": "cards_column_id_fkey",
+      "source_table": "cards",
+      "source_column": "column_id",
+      "target_table": "columns",
+      "target_column": "id"
+    },
+    {
+      "table_schema": "public",
+      "constraint_name": "columns_board_id_fkey",
+      "source_table": "columns",
+      "source_column": "board_id",
+      "target_table": "boards",
+      "target_column": "id"
+    },
+    {
+      "table_schema": "public",
+      "constraint_name": "tags_board_id_fkey",
+      "source_table": "tags",
+      "source_column": "board_id",
+      "target_table": "boards",
+      "target_column": "id"
+    }
+  ]

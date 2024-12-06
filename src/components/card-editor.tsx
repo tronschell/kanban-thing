@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar } from 'lucide-react'
+import { Calendar, X, Plus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Modal } from '@/components/ui'
 
@@ -13,22 +13,37 @@ const DEFAULT_COLORS = [
   '#3b82f6', // blue
 ]
 
+interface Tag {
+  id: string
+  name: string
+  color: string | null
+}
+
 interface CardEditorProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (card: {
+  onSave: (data: {
     title: string
     description: string
     color: string | null
     due_date: string | null
-  }) => Promise<void>
-  columnName: string
-  initialCard?: {
+    tags: string[] // Array of tag IDs
+  }) => void
+  columnName?: string
+  initialData?: {
     title: string
     description: string
     color: string | null
     due_date: string | null
+    tags?: string[]
   }
+  availableTags?: Tag[] // All tags available in the board
+  onCreateTag?: (name: string) => Promise<Tag>
+}
+
+function formatDateForInput(dateString: string | null): string {
+  if (!dateString) return ''
+  return new Date(dateString).toISOString().split('T')[0]
 }
 
 export default function CardEditor({
@@ -36,24 +51,46 @@ export default function CardEditor({
   onClose,
   onSave,
   columnName,
-  initialCard,
+  initialData,
+  availableTags = [],
+  onCreateTag,
 }: CardEditorProps) {
-  const [title, setTitle] = useState(initialCard?.title || '')
-  const [description, setDescription] = useState(initialCard?.description || '')
-  const [color, setColor] = useState(initialCard?.color || '')
-  const [dueDate, setDueDate] = useState(initialCard?.due_date || '')
+  const [title, setTitle] = useState(initialData?.title || '')
+  const [description, setDescription] = useState(initialData?.description || '')
+  const [color, setColor] = useState(initialData?.color || '')
+  const [dueDate, setDueDate] = useState(formatDateForInput(initialData?.due_date))
   const [isPreview, setIsPreview] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [selectedTags, setSelectedTags] = useState<string[]>(initialData?.tags || [])
+  const [newTagName, setNewTagName] = useState('')
 
   useEffect(() => {
     if (isOpen) {
-      setTitle(initialCard?.title || '')
-      setDescription(initialCard?.description || '')
-      setColor(initialCard?.color || '')
-      setDueDate(initialCard?.due_date || '')
+      setTitle(initialData?.title || '')
+      setDescription(initialData?.description || '')
+      setColor(initialData?.color || '')
+      setDueDate(formatDateForInput(initialData?.due_date))
       setIsPreview(false)
+      setSelectedTags(initialData?.tags || [])
+      setNewTagName('')
     }
-  }, [isOpen, initialCard])
+  }, [isOpen, initialData])
+
+  const handleAddTag = async () => {
+    if (!newTagName.trim() || !onCreateTag) return
+
+    try {
+      const newTag = await onCreateTag(newTagName.trim())
+      setSelectedTags(prev => [...prev, newTag.id])
+      setNewTagName('')
+    } catch (error) {
+      console.error('Failed to create tag:', error)
+    }
+  }
+
+  const handleRemoveTag = (tagId: string) => {
+    setSelectedTags(prev => prev.filter(id => id !== tagId))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,12 +100,12 @@ export default function CardEditor({
         title,
         description,
         color: color || null,
-        due_date: dueDate || null,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+        tags: selectedTags,
       })
       onClose()
     } catch (error) {
       console.error('Failed to save card:', error)
-      // You might want to show an error message to the user here
     } finally {
       setIsSaving(false)
     }
@@ -124,7 +161,7 @@ export default function CardEditor({
                 type="button"
                 onClick={() => setColor(c)}
                 className={`w-6 h-6 rounded-full ${
-                  color === c ? 'ring-2 ring-offset-2 ring-blue-500' : ''
+                  color === c ? 'ring-2 ring-offset-2 bg-gray-100' : ''
                 }`}
                 style={{ backgroundColor: c }}
               />
@@ -151,18 +188,90 @@ export default function CardEditor({
           />
         </div>
 
+        <div>
+          <label className="block text-sm font-medium mb-1">Tags</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {selectedTags.map(tagId => {
+              const tag = availableTags.find(t => t.id === tagId)
+              if (!tag) return null
+              
+              return (
+                <div 
+                  key={tag.id}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-sm"
+                  style={{ 
+                    backgroundColor: tag.color || '#e5e7eb',
+                    color: tag.color ? 'white' : 'black'
+                  }}
+                >
+                  {tag.name}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTag(tag.id)}
+                    className="p-0.5 hover:bg-black/10 rounded-full"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+          
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              className="flex-1 p-2 border rounded dark:border-gray-700 dark:bg-gray-900"
+              placeholder="Add new tag"
+            />
+            <button
+              type="button"
+              onClick={handleAddTag}
+              disabled={!newTagName.trim()}
+              className="px-3 py-2 border rounded hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+          
+          {availableTags.length > 0 && (
+            <div className="mt-2">
+              <div className="text-sm text-gray-500 mb-1">Available tags:</div>
+              <div className="flex flex-wrap gap-1">
+                {availableTags
+                  .filter(tag => !selectedTags.includes(tag.id))
+                  .map(tag => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => setSelectedTags(prev => [...prev, tag.id])}
+                      className="px-2 py-1 rounded-full text-sm"
+                      style={{ 
+                        backgroundColor: tag.color || '#e5e7eb',
+                        color: tag.color ? 'white' : 'black'
+                      }}
+                    >
+                      {tag.name}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex justify-end gap-2 pt-4">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm border rounded hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
+            className="px-4 py-2 text-sm border rounded hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700 font-semibold"
             disabled={isSaving}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+            className="px-4 py-2 text-sm bg-white text-gray-900 rounded hover:bg-gray-300 disabled:opacity-50 font-semibold"
             disabled={isSaving}
           >
             {isSaving ? 'Saving...' : 'Save Card'}

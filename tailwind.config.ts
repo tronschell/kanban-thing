@@ -17,6 +17,24 @@ const config: Config = {
           xl: '5rem',
           '2xl': '6rem',
         },
+        screens: {
+          '2xl': '1400px',
+        },
+      },
+      animation: {
+        'gradient': 'gradient 15s ease infinite',
+      },
+      keyframes: {
+        gradient: {
+          '0%, 100%': {
+            'background-size': '200% 200%',
+            'background-position': 'left center'
+          },
+          '50%': {
+            'background-size': '200% 200%',
+            'background-position': 'right center'
+          },
+        },
       },
     },
   },

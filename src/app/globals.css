@@ -21,22 +21,6 @@ body {
   
 }
 
-/* Add these rules to fix draggable positioning */
-[data-rbd-draggable-id] {
-  left: auto !important;
-  top: auto !important;
-}
-
-.draggable{
-  left: auto !important;
-  top: auto !important;
-  position: static !important;
-}
-
-.dragging {
-  position: static !important;
-}
-
 /* Hide scrollbar but keep functionality */
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE and Edge */
@@ -63,7 +47,7 @@ body {
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: #757575;
 }
 
 /* Add these animation styles at the end of the file */
@@ -78,4 +62,95 @@ body {
 
 .animate-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.rbd-draggable-context {
+  position: relative !important;
+  transform: none !important;
+}
+
+[data-rbd-drag-handle-context-id] {
+  cursor: grab;
+}
+
+[data-rbd-drag-handle-context-id]:active {
+  cursor: grabbing;
+}
+
+.drag-container {
+  position: relative;
+  z-index: 0;
+}
+
+/* Custom scrollbar styles */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(209 213 219);
+    border-radius: 20px;
+  }
+  
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(55 65 81);
+  }
+}
+
+/* Prevent pull-to-refresh on mobile */
+html, body {
+  overscroll-behavior-y: none;
+}
+
+/* Add touch action utilities */
+@layer utilities {
+  .touch-action-pan-y {
+    touch-action: pan-y;
+  }
+  
+  .touch-action-manipulation {
+    touch-action: manipulation;
+  }
+}
+
+/* Ensure proper touch behavior on mobile */
+html, body {
+  touch-action: manipulation;
+  -webkit-overflow-scrolling: touch;
+}
+
+@layer base {
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@layer utilities {
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+  
+  .overscroll-behavior-y-contain {
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* Ensure proper overflow handling */
+@layer utilities {
+  .overflow-y-visible {
+    overflow-y: visible;
+  }
 }

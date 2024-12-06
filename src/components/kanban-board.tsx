@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { DndContext, DragOverlay, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core'
-import { SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { DragDropContext, Droppable } from 'react-beautiful-dnd'
 import { Plus, MoreVertical, Pencil, Check, X } from 'lucide-react'
 import { Modal } from '@/components/ui'
 import { SortableColumn } from './sortable-column'
@@ -112,26 +111,24 @@ function CardSkeleton() {
   )
 }
 
-function Column({ column, cards, onAddCard, onDeleteCard, isDraggingCard }: {
+function Column({ 
+  column, 
+  cards, 
+  onAddCard, 
+  onDeleteCard, 
+  isDraggingCard,
+  activeDropIndex 
+}: {
   column: Column
   cards: Card[]
   onAddCard: () => void
   onDeleteCard: (id: string) => void
   isDraggingCard: boolean
+  activeDropIndex: number | null
 }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: column.id,
-    data: {
-      type: 'column',
-      column,
-    },
-  })
-
   return (
-    <div
-      ref={setNodeRef}
-      className="w-80 flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 
-        border border-gray-200/50 dark:border-gray-700/50"
+    <div className="w-80 flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 
+      border border-gray-200/50 dark:border-gray-700/50"
     >
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-medium text-gray-900 dark:text-gray-100">
@@ -146,20 +143,40 @@ function Column({ column, cards, onAddCard, onDeleteCard, isDraggingCard }: {
       </div>
 
       <div className="space-y-2">
-        {isDraggingCard && cards.length === 0 && (
-          <ColumnDropArea columnId={column.id} isOver={isOver} />
-        )}
-        
         {cards.map((card, index) => (
-          <SortableCard
+          <div 
             key={card.id}
-            card={card}
-            onDelete={() => onDeleteCard(card.id)}
-          />
+            className={`
+              transition-transform duration-200
+              ${activeDropIndex !== null && isDraggingCard ? `
+                ${index >= activeDropIndex ? 'translate-y-8' : ''}
+                ${index < activeDropIndex ? '-translate-y-8' : ''}
+              ` : 'translate-y-0'}
+            `}
+          >
+            <SortableCard
+              card={card}
+              containerId={column.id}
+              onDelete={() => onDeleteCard(card.id)}
+              index={index}
+            />
+          </div>
         ))}
-        
-        {isDraggingCard && cards.length > 0 && (
-          <ColumnDropArea columnId={column.id} isOver={isOver} />
+
+        {/* Drop indicator */}
+        {isDraggingCard && activeDropIndex !== null && (
+          <div 
+            className={`
+              absolute left-4 right-4 h-16
+              transition-all duration-200
+              pointer-events-none
+            `}
+            style={{
+              top: `${activeDropIndex * 40 + 64}px`, // Adjust based on card height
+            }}
+          >
+            <div className="h-1 w-full bg-blue-500/50 rounded-full" />
+          </div>
         )}
       </div>
     </div>
@@ -193,13 +210,16 @@ export default function KanbanBoard({
   const [addingCardToColumn, setAddingCardToColumn] = useState<string | null>(null)
   const cardListRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
+  const [activeColumnId, setActiveColumnId] = useState<string | null>(null)
+  const [activeDropInfo, setActiveDropInfo] = useState<{
+    columnId: string | null;
+    index: number | null;
+  }>({ columnId: null, index: null });
+  const [draggingCard, setDraggingCard] = useState<Card | null>(null);
+  const [draggedCard, setDraggedCard] = useState<Card | null>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isDraggingBetweenColumns, setIsDraggingBetweenColumns] = useState(false);
+  const [url, setUrl] = useState<string>('')
 
   useEffect(() => {
     const fetchBoardData = async () => {
@@ -278,6 +298,21 @@ export default function KanbanBoard({
     }
   }, [boardId])
 
+  useEffect(() => {
+    // Set URL after component mounts
+    setUrl(`${window.location.origin}/board?id=${boardId}`)
+
+    // Mouse move handler
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDraggingBetweenColumns) {
+        setMousePosition({ x: e.clientX, y: e.clientY })
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => window.removeEventListener('mousemove', handleMouseMove)
+  }, [boardId, isDraggingBetweenColumns])
+
   const handleBoardNameEdit = () => {
     setIsEditingName(true)
     setTimeout(() => {
@@ -309,111 +344,135 @@ export default function KanbanBoard({
     }
   }
 
-  const handleDragStart = ({ active }: any) => {
-    setActiveId(active.id)
-    setActiveType(active.data.current?.type)
-  }
-
-  const handleDragEnd = async ({ active, over }: any) => {
-    if (!over) {
-      setActiveId(null)
-      setActiveType(null)
-      return
+  const handleDragStart = (start: any) => {
+    const card = cards.find(c => c.id === start.draggableId);
+    if (card) {
+      setDraggedCard(card);
     }
+  };
 
-    if (activeType === 'column' && active.id !== over.id) {
-      const oldIndex = columns.findIndex((col) => col.id === active.id)
-      const newIndex = columns.findIndex((col) => col.id === over.id)
+  const handleDragUpdate = (update: any) => {
+    if (update.destination?.droppableId !== update.source.droppableId) {
+      setMousePosition({
+        x: update.clientX,
+        y: update.clientY
+      })
+    }
+  };
+
+  const handleDragEnd = (result: any) => {
+    // Clean up preview
+    setDraggedCard(null);
+
+    const { source, destination, draggableId } = result;
+
+    // Dropped outside or same position
+    if (!destination) return;
+    
+    // Find the moved card
+    const card = cards.find(c => c.id === draggableId);
+    if (!card) return;
+
+    // Create new array and remove card from old position
+    const newCards = [...cards];
+    const cardIndex = newCards.findIndex(c => c.id === draggableId);
+    newCards.splice(cardIndex, 1);
+
+    // Get cards in destination column
+    const columnCards = newCards.filter(c => c.column_id === destination.droppableId);
+    
+    // Calculate new position
+    const newPosition = destination.index * 1000;
+    
+    // Create updated card
+    const updatedCard = {
+      ...card,
+      column_id: destination.droppableId,
+      position: newPosition
+    };
+
+    // Insert card at new position
+    if (destination.droppableId === source.droppableId) {
+      // Same column - insert at exact index
+      const sameColumnCards = newCards.filter(c => c.column_id === source.droppableId);
+      sameColumnCards.splice(destination.index, 0, updatedCard);
       
-      const updatedColumns = arrayMove(columns, oldIndex, newIndex)
-      setColumns(updatedColumns)
+      // Update all positions in the column
+      const updatedColumnCards = sameColumnCards.map((c, index) => ({
+        ...c,
+        position: index * 1000
+      }));
 
-      // Update positions in database
-      await Promise.all(
-        updatedColumns.map((col, index) =>
-          supabase
-            .from('columns')
-            .update({ position: index })
-            .eq('id', col.id)
-        )
-      )
-    } else if (activeType === 'card') {
-      const activeCard = active.data.current.card
-      if (!activeCard) return
+      // Replace old column cards with updated ones
+      const finalCards = newCards.filter(c => c.column_id !== source.droppableId)
+        .concat(updatedColumnCards);
 
-      // Get the destination column ID
-      let destColumnId: string | undefined
+      // Update UI immediately
+      setCards(finalCards);
 
-      // If dropping on a card, use its column ID
-      const overCard = cards.find(card => card.id === over.id)
-      if (overCard) {
-        destColumnId = overCard.column_id
-      } else {
-        // If dropping in a column directly
-        const overColumn = columns.find(col => col.id === over.id)
-        if (overColumn) {
-          destColumnId = overColumn.id
-        }
-      }
-
-      // Validate destination column
-      if (!destColumnId || !columns.find(col => col.id === destColumnId)) {
-        console.error('Invalid destination column')
-        return
-      }
-
-      // Get all cards in the destination column
-      const destColumnCards = cards.filter(card => card.column_id === destColumnId)
-      
-      // Calculate new position
-      const newPosition = destColumnCards.length
-
+      // Update database
       try {
-        // Update the card in the database
-        const { error } = await supabase
+        const updates = updatedColumnCards.map(c => ({
+          id: c.id,
+          column_id: c.column_id,
+          position: c.position
+        }));
+
+        supabase
           .from('cards')
-          .update({
-            column_id: destColumnId,
+          .upsert(updates, { onConflict: 'id' });
+      } catch (error) {
+        console.error('Error updating card positions:', error);
+      }
+    } else {
+      // Different column - handle cross-column movement
+      newCards.splice(destination.index, 0, updatedCard);
+      
+      // Update UI immediately
+      setCards(newCards);
+
+      // Update database
+      try {
+        supabase
+          .from('cards')
+          .update({ 
+            column_id: destination.droppableId,
             position: newPosition
           })
-          .eq('id', activeCard.id)
-
-        if (error) throw error
-
-        // Update local state
-        setCards(currentCards => {
-          // If card is from backlog, add it to the board
-          if (!currentCards.find(c => c.id === activeCard.id)) {
-            return [...currentCards, { ...activeCard, column_id: destColumnId, position: newPosition }]
-          }
-          // Otherwise update existing card
-          return currentCards.map(card =>
-            card.id === activeCard.id
-              ? { ...card, column_id: destColumnId, position: newPosition }
-              : card
-          )
-        })
-
-        // Record history
-        const sourceCol = activeCard.column_id ? columns.find(col => col.id === activeCard.column_id)?.name : 'Backlog'
-        const destCol = columns.find(col => col.id === destColumnId)
-        
-        if (destCol) {
-          await supabase
-            .from('card_history')
-            .insert({
-              card_id: activeCard.id,
-              from_column: sourceCol,
-              to_column: destCol.name
-            })
-        }
+          .eq('id', card.id)
+          .then(() => {
+            // Update positions of all cards in destination column
+            const columnCards = newCards.filter(c => c.column_id === destination.droppableId);
+            updateCardPositions(destination.droppableId, columnCards);
+          });
       } catch (error) {
-        console.error('Error updating card positions:', error)
+        console.error('Error updating card positions:', error);
       }
     }
+  };
 
-    setActiveId(null)
-    setActiveType(null)
+  const updateCardPositions = async (columnId: string, columnCards: Card[]) => {
+    if (!columnId) return
+
+    try {
+      const updates = columnCards.map((card, index) => ({
+        id: card.id,
+        title: card.title,
+        column_id: columnId,
+        position: index * 1000,
+        created_at: card.created_at
+      }))
+
+      const { error } = await supabase
+        .from('cards')
+        .upsert(updates, {
+          onConflict: 'id'
+        })
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Error updating card positions:', error)
+    }
   }
 
   const handleAddColumn = async (name: string) => {
@@ -481,13 +540,46 @@ export default function KanbanBoard({
     }
   }
 
+  const handleUpdateCard = async (cardId: string, data: {
+    title: string
+    description: string
+    color: string | null
+    due_date: string | null
+  }) => {
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .update({
+          title: data.title,
+          description: data.description || null,
+          color: data.color,
+          due_date: data.due_date
+        })
+        .eq('id', cardId)
+
+      if (error) throw error
+
+      // Update local state
+      setCards(currentCards =>
+        currentCards.map(card =>
+          card.id === cardId
+            ? { ...card, ...data }
+            : card
+        )
+      )
+    } catch (error) {
+      console.error('Error updating card:', error)
+    }
+  }
+
   if (loading) {
     return <div className="p-8 text-center">Loading board...</div>
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto">
-      <div className="mb-8 flex items-center gap-4">
+    <div className="flex flex-col gap-6 p-6">
+      {/* Board Header */}
+      <div className="flex items-center gap-4">
         {isEditingName ? (
           <div className="flex items-center gap-2">
             <input
@@ -495,13 +587,14 @@ export default function KanbanBoard({
               type="text"
               value={newBoardName}
               onChange={(e) => setNewBoardName(e.target.value)}
+              onBlur={handleBoardNameSave}
               onKeyDown={handleBoardNameKeyDown}
-              className="text-2xl font-semibold bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 outline-none px-1 py-0.5"
-              placeholder="Board name"
+              className="text-2xl font-bold bg-transparent border-b-2 border-blue-500 outline-none text-gray-900 dark:text-white px-1"
+              autoFocus
             />
             <button
               onClick={handleBoardNameSave}
-              className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+              className="p-1 text-green-500 hover:bg-green-500/10 rounded"
             >
               <Check className="w-5 h-5" />
             </button>
@@ -510,19 +603,19 @@ export default function KanbanBoard({
                 setNewBoardName(boardData?.name || '')
                 setIsEditingName(false)
               }}
-              className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              className="p-1 text-red-500 hover:bg-red-500/10 rounded"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+          <div className="group flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {boardData?.name || 'Untitled Board'}
             </h1>
             <button
               onClick={handleBoardNameEdit}
-              className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+              className="p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-all duration-200"
             >
               <Pencil className="w-4 h-4" />
             </button>
@@ -530,92 +623,55 @@ export default function KanbanBoard({
         )}
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext 
-          items={columns.map(col => col.id)}
-          strategy={horizontalListSortingStrategy}
+      {/* Board Content */}
+      <div className="flex gap-4">
+        {columns.map((column) => (
+          <SortableColumn
+            key={column.id}
+            column={column}
+            cards={cards.filter(card => card.column_id === column.id)}
+            onAddCard={() => setAddingCardToColumn(column.id)}
+            onDeleteCard={handleDeleteCard}
+          />
+        ))}
+        
+        <button
+          onClick={() => setIsAddingColumn(true)}
+          className="flex-shrink-0 w-80 h-12 flex items-center justify-center gap-2 
+            text-gray-500 dark:text-gray-400
+            bg-gray-100/50 dark:bg-gray-800/30 
+            hover:bg-gray-200/50 dark:hover:bg-gray-700/30
+            rounded-xl transition-colors"
         >
-          <div 
-            className="flex gap-4 overflow-x-auto pb-4 relative snap-x scrollbar-hide"
-            data-type="board"
-          >
-            <div 
-              className="flex gap-4 flex-nowrap min-w-fit"
-              data-type="columns-container"
-            >
-              {columns.map((column) => (
-                <Column
-                  key={column.id}
-                  column={column}
-                  cards={cards.filter(card => card.column_id === column.id)}
-                  onAddCard={() => setAddingCardToColumn(column.id)}
-                  onDeleteCard={handleDeleteCard}
-                  isDraggingCard={activeType === 'card'}
-                />
-              ))}
+          <Plus className="w-4 h-4" />
+          Add Column
+        </button>
+      </div>
 
-              <button
-                onClick={() => setIsAddingColumn(true)}
-                className="h-fit self-start w-48 flex-shrink-0 p-3 bg-gray-100/50 dark:bg-gray-800/50 rounded-lg 
-                  hover:bg-gray-200 dark:hover:bg-gray-700/50 snap-start border border-gray-200/50 dark:border-gray-700/50
-                  text-gray-600 dark:text-gray-400 text-sm transition-colors"
-              >
-                <span className="flex items-center justify-center gap-1.5">
-                  <Plus className="w-3.5 h-3.5" />
-                  Add column
-                </span>
-              </button>
-            </div>
-          </div>
-        </SortableContext>
+      {/* Column Editor Modal */}
+      <ColumnEditor
+        isOpen={isAddingColumn}
+        onClose={() => setIsAddingColumn(false)}
+        onSave={async (name) => {
+          await handleAddColumn(name)
+          setIsAddingColumn(false)
+        }}
+      />
 
-        <DragOverlay dropAnimation={{
-          duration: 200,
-          easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-        }}>
-          {activeId && activeType === 'column' && (
-            <div className="w-80 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-200/50 dark:border-gray-700/50 shadow-lg">
-              {columns.find(col => col.id === activeId)?.name}
-            </div>
-          )}
-          {activeId && activeType === 'card' && (
-            <div className="w-80">
-              {cards.find(card => card.id === activeId) && (
-                <div className="bg-white dark:bg-gray-700/50 p-4 rounded-lg shadow-lg border border-gray-100 dark:border-gray-600/50 rotate-[-2deg]">
-                  <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
-                    {cards.find(card => card.id === activeId)?.title}
-                  </h4>
-                  {cards.find(card => card.id === activeId)?.description && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {cards.find(card => card.id === activeId)?.description}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </DragOverlay>
-      </DndContext>
-
+      {/* Card Editor Modal */}
       {addingCardToColumn && (
         <CardEditor
           isOpen={true}
           onClose={() => setAddingCardToColumn(null)}
-          onSave={(cardData) => handleAddCard(addingCardToColumn, cardData)}
-          columnName={columns.find(col => col.id === addingCardToColumn)?.name || ''}
+          onSave={async (data) => {
+            if (addingCardToColumn) {
+              await handleAddCard(addingCardToColumn, data)
+              setAddingCardToColumn(null)
+            }
+          }}
+          columnName={columns.find(c => c.id === addingCardToColumn)?.name}
         />
       )}
-
-      <ColumnEditor
-        isOpen={isAddingColumn}
-        onClose={() => setIsAddingColumn(false)}
-        onSave={handleAddColumn}
-      />
     </div>
   )
 } 
