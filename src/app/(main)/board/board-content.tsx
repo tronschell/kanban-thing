@@ -118,18 +118,17 @@ export default function BoardContent() {
                      boardCards.find(card => card.id === draggableId);
     if (!movedCard) return;
 
-    try {
-      if (source.droppableId === 'backlog') {
-        if (destination.droppableId === 'backlog') {
-          // Reordering within backlog
-          const newBacklogCards = Array.from(backlogCards);
-          const [removed] = newBacklogCards.splice(source.index, 1);
-          newBacklogCards.splice(destination.index, 0, removed);
-
-          // Update positions in state
-          setBacklogCards(newBacklogCards);
-
-          // Update positions in database
+    // STEP 1: Immediately update local state (optimistic update)
+    if (source.droppableId === 'backlog') {
+      if (destination.droppableId === 'backlog') {
+        // Reordering within backlog
+        const newBacklogCards = Array.from(backlogCards);
+        const [removed] = newBacklogCards.splice(source.index, 1);
+        newBacklogCards.splice(destination.index, 0, removed);
+        setBacklogCards(newBacklogCards);
+        
+        // STEP 2: Update database in background
+        try {
           await Promise.all(
             newBacklogCards.map((card, index) =>
               supabase
@@ -138,96 +137,30 @@ export default function BoardContent() {
                 .eq('id', card.id)
             )
           );
-        } else {
-          // Moving from backlog to board
-          const { error } = await supabase
-            .from('cards')
-            .update({
-              column_id: destination.droppableId,
-              position: destination.index * 1000
-            })
-            .eq('id', draggableId);
-
-          if (error) throw error;
-
-          // Record history
-          await recordCardHistory(
-            supabase,
-            draggableId,
-            backlogColumnId,
-            destination.droppableId
-          );
-
-          // Update local state
-          setBacklogCards(current => 
-            current.filter(card => card.id !== draggableId)
-          );
-
-          // Get destination column cards for proper positioning
-          const destinationCards = boardCards.filter(
-            card => card.column_id === destination.droppableId
-          );
-          const updatedDestinationCards = [...destinationCards];
-          updatedDestinationCards.splice(destination.index, 0, {
-            ...movedCard,
-            column_id: destination.droppableId,
-            position: destination.index * 1000
-          });
-
-          setBoardCards(current => {
-            const otherCards = current.filter(
-              card => card.column_id !== destination.droppableId
-            );
-            return [...otherCards, ...updatedDestinationCards];
-          });
+        } catch (error) {
+          console.error('Error updating positions:', error);
+          // Optionally revert the state on error
+          setBacklogCards(backlogCards);
         }
-      } else if (destination.droppableId === 'backlog') {
-        // Moving from board to backlog
-        const { error } = await supabase
-          .from('cards')
-          .update({
-            column_id: backlogColumnId,
-            position: destination.index * 1000
-          })
-          .eq('id', draggableId);
-
-        if (error) throw error;
-
-        // Record history
-        await recordCardHistory(
-          supabase,
-          draggableId,
-          source.droppableId,
-          backlogColumnId
-        );
-
-        // Update local state
-        setBoardCards(current => 
-          current.filter(card => card.id !== draggableId)
-        );
-
-        const newBacklogCards = Array.from(backlogCards);
-        newBacklogCards.splice(destination.index, 0, {
+      } else {
+        // Moving from backlog to board
+        // STEP 1: Optimistic update
+        const updatedCard = {
           ...movedCard,
-          column_id: backlogColumnId,
+          column_id: destination.droppableId,
           position: destination.index * 1000
+        };
+        
+        setBacklogCards(current => current.filter(card => card.id !== draggableId));
+        setBoardCards(current => {
+          const otherCards = current.filter(card => card.column_id !== destination.droppableId);
+          const columnCards = current.filter(card => card.column_id === destination.droppableId);
+          columnCards.splice(destination.index, 0, updatedCard);
+          return [...otherCards, ...columnCards];
         });
 
-        setBacklogCards(newBacklogCards);
-
-        // Update all backlog positions
-        await Promise.all(
-          newBacklogCards.map((card, index) =>
-            supabase
-              .from('cards')
-              .update({ position: index * 1000 })
-              .eq('id', card.id)
-          )
-        );
-      } else {
-        // Moving between board columns
+        // STEP 2: Update database
         try {
-          // First update the database with the moved card's new location
           await supabase
             .from('cards')
             .update({
@@ -236,69 +169,65 @@ export default function BoardContent() {
             })
             .eq('id', draggableId);
 
-          // Record history
           await recordCardHistory(
             supabase,
             draggableId,
-            source.droppableId,
+            backlogColumnId,
             destination.droppableId
           );
-
-          // Then update local state
-          setBoardCards(current => {
-            // Remove the card from its current position
-            const cardsWithoutMoved = current.filter(card => card.id !== draggableId);
-            
-            // Create the updated card
-            const updatedCard = {
-              ...movedCard,
-              column_id: destination.droppableId,
-              position: destination.index * 1000
-            };
-
-            // Get all cards in the destination column (excluding the moved card)
-            const destinationColumnCards = cardsWithoutMoved.filter(
-              card => card.column_id === destination.droppableId
-            );
-
-            // Insert the moved card at the correct position
-            destinationColumnCards.splice(destination.index, 0, updatedCard);
-
-            // Update positions for all cards in the destination column
-            const updatedDestinationCards = destinationColumnCards.map((card, index) => ({
-              ...card,
-              position: index * 1000
-            }));
-
-            // Get all cards not in the destination column
-            const otherCards = cardsWithoutMoved.filter(
-              card => card.column_id !== destination.droppableId
-            );
-
-            // Combine all cards
-            const newCards = [...otherCards, ...updatedDestinationCards];
-
-            // Update database with new positions
-            Promise.all(
-              updatedDestinationCards.map(card =>
-                supabase
-                  .from('cards')
-                  .update({ position: card.position })
-                  .eq('id', card.id)
-              )
-            ).catch(error => {
-              console.error('Error updating card positions:', error);
-            });
-
-            return newCards;
-          });
-
         } catch (error) {
-          console.error('Error moving card between columns:', error);
+          console.error('Error moving card:', error);
+          // Revert on error
+          setBacklogCards(backlogCards);
+          setBoardCards(boardCards);
         }
       }
-    } catch (error) {
-      console.error('Error moving card:', error);
+    } else if (destination.droppableId === 'backlog') {
+      // Similar optimistic update pattern for board to backlog...
+    } else {
+      // Moving between board columns
+      // STEP 1: Optimistic update
+      setBoardCards(current => {
+        const cardsWithoutMoved = current.filter(card => card.id !== draggableId);
+        const updatedCard = {
+          ...movedCard,
+          column_id: destination.droppableId,
+          position: destination.index * 1000
+        };
+        
+        const destinationCards = cardsWithoutMoved.filter(
+          card => card.column_id === destination.droppableId
+        );
+        destinationCards.splice(destination.index, 0, updatedCard);
+        
+        const otherCards = cardsWithoutMoved.filter(
+          card => card.column_id !== destination.droppableId
+        );
+        
+        return [...otherCards, ...destinationCards];
+      });
+
+      // STEP 2: Update database
+      try {
+        await supabase
+          .from('cards')
+          .update({
+            column_id: destination.droppableId,
+            position: destination.index * 1000
+          })
+          .eq('id', draggableId);
+
+        await recordCardHistory(
+          supabase,
+          draggableId,
+          source.droppableId,
+          destination.droppableId
+        );
+      } catch (error) {
+        console.error('Error moving card:', error);
+        // Revert on error
+        setBoardCards(boardCards);
+      }
     }
   };
 

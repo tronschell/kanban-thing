@@ -47,7 +47,7 @@ export function SortableColumn({ column, cards, onAddCard, onDeleteCard }: Sorta
             ref={provided.innerRef}
             {...provided.droppableProps}
             className={`
-              min-h-[8rem] rounded-lg p-2 touch-none
+              min-h-[8rem] rounded-lg p-2 touch-none space-y-2
               ${snapshot.isDraggingOver ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}
               transition-colors duration-200
             `}

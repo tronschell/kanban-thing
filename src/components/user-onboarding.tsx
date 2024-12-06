@@ -70,7 +70,7 @@ export default function UserOnboarding() {
       {/* Content layer - higher z-index */}
       <div className="relative z-10 bg-white/30 dark:bg-gray-900/30 backdrop-blur-md p-8 rounded-xl max-w-md w-full shadow-xl border border-white/20">
         <h2 className="text-2xl font-bold mb-6 text-white">
-          Create Your First Board
+          Create Your Kanban Board
         </h2>
         <form onSubmit={handleCreateBoard} className="space-y-4">
           <div>
@@ -95,7 +95,7 @@ export default function UserOnboarding() {
           <button
             type="submit"
             disabled={isCreating}
-            className="w-full bg-white/20 text-white py-3 rounded-lg hover:bg-white/30 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="font-md w-full bg-white text-gray-950 py-3 rounded-lg hover:bg-white/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isCreating ? 'Creating Board...' : 'Create Board'}
           </button>
