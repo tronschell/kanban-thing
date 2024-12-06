@@ -54,7 +54,7 @@ export default function UserOnboarding() {
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center">
+    <div className="fixed inset-0 flex items-center justify-center px-4">
       {/* Background layer */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="absolute inset-0">

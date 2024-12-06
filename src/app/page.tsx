@@ -6,38 +6,38 @@ import { PreviewCard } from "@/components/ui/preview-card";
 
 export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col bg-gray-950 overflow-auto">
+    <div className="min-h-screen flex flex-col bg-gray-950 overflow-x-hidden">
       <GradientBackground />
 
       {/* Hero Section */}
-      <main className="relative flex-1 flex flex-col p-8 md:p-20">
+      <main className="relative flex-1 flex flex-col p-4 md:p-20">
         <div className="max-w-5xl mx-auto text-center">
-          <h1 className="text-6xl md:text-8xl font-bold text-white mb-8 tracking-tight">
+          <h1 className="text-5xl md:text-8xl font-bold text-white mb-6 md:mb-8 tracking-tight">
             KanbanThing
           </h1>
-          <p className="text-xl md:text-2xl text-white/90 mb-12 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-lg md:text-2xl text-white/90 mb-8 md:mb-12 max-w-3xl mx-auto leading-relaxed px-2">
             Built to make you extraordinarily productive.
-            <br />
+            <br className="hidden sm:block" />
             The easiest way to organize your work.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center px-1">
             <Link 
               href="/onboarding"
-              className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium text-gray-900 bg-white rounded-xl hover:bg-white/90 transition-colors shadow-lg backdrop-blur-sm"
+              className="inline-flex items-center justify-center px-6 py-3 md:px-8 md:py-4 text-base md:text-lg font-medium text-gray-900 bg-white rounded-xl hover:bg-white/90 transition-colors shadow-lg backdrop-blur-sm"
             >
               Create New Board
-              <ArrowRight className="ml-2 h-5 w-5" />
+              <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
             </Link>
           </div>
 
           {/* App Preview */}
-          <div className="mt-12 sm:mt-20 relative">
+          <div className="mt-8 sm:mt-20 relative px-1">
             <PreviewCard>
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-2xl" />
               <div className="relative bg-gray-900/40 backdrop-blur border border-white/10 rounded-2xl p-2 sm:p-4 shadow-2xl">
                 {/* Window Controls */}
-                <div className="flex items-center gap-1 sm:gap-2 mb-2 sm:mb-4 px-2 sm:px-4">
+                <div className="flex items-center gap-1 sm:gap-2 mb-2 sm:mb-4 px-2 sm:px-1">
                   <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-red-500" />
                   <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-yellow-500" />
                   <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-green-500" />
@@ -110,7 +110,7 @@ export default function Home() {
           </div>
 
           {/* Features Section */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-20">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 mt-12 md:mt-20 px-1">
             {/* No Sign-up Card */}
             <div className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]">
               <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -187,7 +187,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="relative py-6 text-center text-white/60">
+      <footer className="relative py-4 md:py-6 text-center text-white/60 px-1">
         <div className="flex flex-col gap-2">
           <p>Built by <a href="https://www.linkedin.com/in/tron-schell-aa0856181/" className="text-blue-500">Tron Schell</a></p>
           <div className="flex justify-center gap-4 text-sm">
