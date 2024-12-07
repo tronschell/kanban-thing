@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { GradientBackground } from '@/components/ui/gradient-background'
@@ -9,6 +9,7 @@ import BoardContent from './board-content'
 
 export default function BoardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -16,10 +17,11 @@ export default function BoardPage() {
       console.log('Checking auth...')
       await new Promise(resolve => setTimeout(resolve, 100))
       
+      const boardId = searchParams.get('id')
       const userId = localStorage.getItem('kanban_user_id')
       console.log('UserId:', userId)
       
-      if (!userId) {
+      if (!userId && !boardId) {
         console.log('Redirecting to onboarding...')
         router.replace('/onboarding')
       } else {
@@ -29,7 +31,7 @@ export default function BoardPage() {
     }
 
     checkAuth()
-  }, [router])
+  }, [router, searchParams])
 
   // Show loading state while checking authorization
   if (isAuthorized === null) {
