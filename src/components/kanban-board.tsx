@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { DragDropContext, Droppable } from 'react-beautiful-dnd'
-import { Plus, MoreVertical, Pencil, Check, X } from 'lucide-react'
+import { Plus, MoreVertical, Pencil, Check, X, Settings } from 'lucide-react'
 import { Modal } from '@/components/ui'
 import { SortableColumn } from './sortable-column'
 import { SortableCard } from './sortable-card'
 import CardEditor from './card-editor'
+import { ColumnReorderModal } from './column-reorder-modal'
 
 interface Board {
   id: string
@@ -81,7 +82,7 @@ function ColumnEditor({ isOpen, onClose, onSave }: ColumnEditorProps) {
           </button>
           <button
             type="submit"
-            className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="px-4 py-2 text-sm bg-white text-gray-900 rounded hover:bg-gray-100"
           >
             Add Column
           </button>
@@ -220,6 +221,7 @@ export default function KanbanBoard({
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isDraggingBetweenColumns, setIsDraggingBetweenColumns] = useState(false);
   const [url, setUrl] = useState<string>('')
+  const [isReorderingColumns, setIsReorderingColumns] = useState(false)
 
   useEffect(() => {
     const fetchBoardData = async () => {
@@ -572,6 +574,28 @@ export default function KanbanBoard({
     }
   }
 
+  const handleReorderColumns = async (newColumns: Column[]) => {
+    // Update local state first
+    setColumns(newColumns)
+
+    // Then update the database
+    try {
+      const updates = newColumns.map(column => ({
+        id: column.id,
+        position: column.position
+      }))
+
+      const { error } = await supabase
+        .from('columns')
+        .upsert(updates, { onConflict: 'id' })
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Error updating column positions:', error)
+      // Optionally revert the state if the update fails
+    }
+  }
+
   if (loading) {
     return <div className="p-8 text-center">Loading board...</div>
   }
@@ -579,48 +603,62 @@ export default function KanbanBoard({
   return (
     <div className="flex flex-col gap-6 py-6">
       {/* Board Header */}
-      <div className="flex items-center gap-4">
-        {isEditingName ? (
-          <div className="flex items-center gap-2">
-            <input
-              ref={boardNameInputRef}
-              type="text"
-              value={newBoardName}
-              onChange={(e) => setNewBoardName(e.target.value)}
-              onBlur={handleBoardNameSave}
-              onKeyDown={handleBoardNameKeyDown}
-              className="text-2xl font-bold bg-transparent border-b-2 border-blue-500 outline-none text-gray-900 dark:text-white px-1"
-              autoFocus
-            />
-            <button
-              onClick={handleBoardNameSave}
-              className="p-1 text-green-500 hover:bg-green-500/10 rounded"
-            >
-              <Check className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => {
-                setNewBoardName(boardData?.name || '')
-                setIsEditingName(false)
-              }}
-              className="p-1 text-red-500 hover:bg-red-500/10 rounded"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        ) : (
-          <div className="group flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {boardData?.name || 'Untitled Board'}
-            </h1>
-            <button
-              onClick={handleBoardNameEdit}
-              className="p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-all duration-200"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          {isEditingName ? (
+            <div className="flex items-center gap-2">
+              <input
+                ref={boardNameInputRef}
+                type="text"
+                value={newBoardName}
+                onChange={(e) => setNewBoardName(e.target.value)}
+                onBlur={handleBoardNameSave}
+                onKeyDown={handleBoardNameKeyDown}
+                className="text-2xl font-bold bg-transparent border-b-2 border-blue-500 outline-none text-gray-900 dark:text-white px-1"
+                autoFocus
+              />
+              <button
+                onClick={handleBoardNameSave}
+                className="p-1 text-green-500 hover:bg-green-500/10 rounded"
+              >
+                <Check className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => {
+                  setNewBoardName(boardData?.name || '')
+                  setIsEditingName(false)
+                }}
+                className="p-1 text-red-500 hover:bg-red-500/10 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="group flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {boardData?.name || 'Untitled Board'}
+              </h1>
+              <button
+                onClick={handleBoardNameEdit}
+                className="p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-all duration-200"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+        
+        <button
+          onClick={() => setIsReorderingColumns(true)}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm 
+            bg-white dark:bg-gray-800 rounded-lg 
+            border border-gray-200 dark:border-gray-700 
+            hover:bg-gray-50 dark:hover:bg-gray-700 
+            transition-colors"
+        >
+          <Settings className="w-4 h-4" />
+          Edit Columns
+        </button>
       </div>
 
       {/* Board Content */}
@@ -672,6 +710,14 @@ export default function KanbanBoard({
           columnName={columns.find(c => c.id === addingCardToColumn)?.name}
         />
       )}
+
+      {/* Add the reorder modal */}
+      <ColumnReorderModal
+        isOpen={isReorderingColumns}
+        onClose={() => setIsReorderingColumns(false)}
+        columns={columns}
+        onReorder={handleReorderColumns}
+      />
     </div>
   )
 } 

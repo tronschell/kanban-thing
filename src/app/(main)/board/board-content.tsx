@@ -109,6 +109,50 @@ export default function BoardContent() {
     initializeBacklog();
   }, [boardId]);
 
+  useEffect(() => {
+    const fetchColumns = async () => {
+      const { data: columnsData } = await supabase
+        .from('columns')
+        .select('*')
+        .eq('board_id', boardId)
+        .neq('name', 'Backlog')
+        .order('position') // Make sure to order by position
+      
+      if (columnsData) {
+        setColumns(columnsData)
+      }
+    }
+
+    fetchColumns()
+
+    // Add realtime subscription for column changes
+    const channel = supabase
+      .channel('columns_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'columns',
+          filter: `board_id=eq.${boardId}`
+        },
+        (payload: any) => {
+          if (payload.eventType === 'UPDATE') {
+            setColumns(current => 
+              current.map(col => 
+                col.id === payload.new.id ? { ...col, ...payload.new } : col
+              ).sort((a, b) => a.position - b.position)
+            )
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [boardId])
+
   const handleDragEnd = async (result: any) => {
     const { source, destination, draggableId } = result;
     if (!destination || !backlogColumnId) return;

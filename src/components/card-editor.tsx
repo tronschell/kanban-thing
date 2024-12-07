@@ -264,14 +264,14 @@ export default function CardEditor({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm border rounded hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700 font-semibold"
+            className="px-4 py-2 text-sm border rounded hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700 font-medium"
             disabled={isSaving}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-4 py-2 text-sm bg-white text-gray-900 rounded hover:bg-gray-300 disabled:opacity-50 font-semibold"
+            className="px-4 py-2 text-sm bg-white text-gray-900 rounded hover:bg-gray-300 disabled:opacity-50 font-medium"
             disabled={isSaving}
           >
             {isSaving ? 'Saving...' : 'Save Card'}

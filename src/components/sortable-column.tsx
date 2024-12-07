@@ -29,7 +29,7 @@ interface SortableColumnProps {
 
 export function SortableColumn({ column, cards, onAddCard, onDeleteCard }: SortableColumnProps) {
   return (
-    <div className="w-80 flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 touch-none">
+    <div className="w-80 flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 touch-none border border-gray-200 dark:border-gray-700">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-medium">{column.name}</h3>
         <button onClick={onAddCard}>

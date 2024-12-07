@@ -95,16 +95,6 @@ function SortableBacklogCard({
             </div>
           </div>
 
-          {/* Create a clone for dragging */}
-          {snapshot.isDragging && (
-            <div
-              style={provided.draggableProps.style}
-              className="fixed opacity-0 pointer-events-none"
-            >
-              {provided.placeholder}
-            </div>
-          )}
-
           <AnimatePresence>
             {contextMenu && (
               <ContextMenu
@@ -415,51 +405,51 @@ export default function Backlog({
   }
 
   return (
-    <div className="mt-8 mb-8 border-t border-gray-200 dark:border-gray-700 pt-8">
+    <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Backlog
-        </h2>
-        <button
-          onClick={() => setIsAddingCard(true)}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add card
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Backlog
+          </h2>
+          <button
+            onClick={() => setIsAddingCard(true)}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add card
         </button>
       </div>
 
       <Droppable 
-        droppableId="backlog" 
-        direction="vertical"
-        type="card"
-      >
-        {(provided, snapshot) => (
-          <div 
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className="space-y-2 rbd-draggable-context"
-          >
-            {cards.map((card, index) => (
-              <SortableBacklogCard
-                key={card.id}
-                card={card}
-                index={index}
-                onDelete={handleDeleteCard}
-                columns={boardColumns}
-                onMoveToColumn={handleMoveToColumn}
-              />
-            ))}
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
+          droppableId="backlog" 
+          direction="vertical"
+          type="card"
+        >
+          {(provided, snapshot) => (
+            <div 
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className="space-y-2 rbd-draggable-context"
+            >
+              {cards.map((card, index) => (
+                <SortableBacklogCard
+                  key={card.id}
+                  card={card}
+                  index={index}
+                  onDelete={handleDeleteCard}
+                  columns={boardColumns}
+                  onMoveToColumn={handleMoveToColumn}
+                />
+              ))}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
 
-      {isAddingCard && (
-        <CardEditor
-          isOpen={true}
-          onClose={() => setIsAddingCard(false)}
-          onSave={handleAddCard}
+        {isAddingCard && (
+          <CardEditor
+            isOpen={true}
+            onClose={() => setIsAddingCard(false)}
+            onSave={handleAddCard}
           columnName="Backlog"
         />
       )}
