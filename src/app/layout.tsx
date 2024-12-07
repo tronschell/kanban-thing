@@ -15,11 +15,12 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
+  keywords: ['Kanban', 'Kanban Board', 'Free Kanban Board', 'Programming', 'Project Management', 'Task Management', 'Scrum', 'Agile', 'Workflow', 'Productivity'],
   title: {
     template: '%s | KanbanThing',
     default: 'KanbanThing - Simple Free Kanban Board Tool'
   },
-  description: 'A simple, free, and efficient Kanban board application designed to help individuals and teams organize their work effectively.',
+  description: 'A simple, no-signup, and free Kanban board application designed to help individuals and teams organize their work effectively. KanbanThing can be used for project management, team collaboration, or as a simple task list.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://kanbanthing.com'),
   openGraph: {
     type: 'website',
