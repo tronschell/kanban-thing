@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { GradientBackground } from '@/components/ui/gradient-background'
 import BoardContent from './board-content'
 
-export default function BoardPage() {
+// Separate component to handle the search params and auth check
+function BoardPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
@@ -42,15 +42,23 @@ export default function BoardPage() {
     )
   }
 
-  // Only render the board content if authorized
+  return (
+    <div className="flex-1 overflow-y-auto overscroll-behavior-y-contain">
+      <Suspense fallback={<LoadingSpinner />}>
+        <BoardContent />
+      </Suspense>
+    </div>
+  )
+}
+
+// Main page component with Suspense boundary
+export default function BoardPage() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-950 touch-pan-y">
       <GradientBackground />
-      <div className="flex-1 overflow-y-auto overscroll-behavior-y-contain">
-        <Suspense fallback={<LoadingSpinner />}>
-          <BoardContent />
-        </Suspense>
-      </div>
+      <Suspense fallback={<LoadingSpinner />}>
+        <BoardPageContent />
+      </Suspense>
     </div>
   )
 }
