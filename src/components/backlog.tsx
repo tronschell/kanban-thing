@@ -20,6 +20,12 @@ interface SortableBacklogCardProps {
   onDelete: (cardId: string) => void
   columns: Array<{ id: string; name: string }>
   onMoveToColumn: (cardId: string, columnId: string) => void
+  onUpdate: (cardId: string, data: {
+    title: string
+    description: string
+    color: string | null
+    due_date: string | null
+  }) => void
 }
 
 function SortableBacklogCard({ 
@@ -27,9 +33,12 @@ function SortableBacklogCard({
   onDelete, 
   columns, 
   onMoveToColumn,
+  onUpdate,
   index
 }: SortableBacklogCardProps & { index: number }) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -37,6 +46,22 @@ function SortableBacklogCard({
     if (columns && columns.length > 0) {
       setContextMenu({ x: e.clientX, y: e.clientY })
     }
+  }
+
+  const handleClick = () => {
+    if (!isDragging) {
+      setIsEditing(true)
+    }
+  }
+
+  const handleDragStart = () => {
+    setIsDragging(true)
+  }
+
+  const handleDragEnd = () => {
+    setTimeout(() => {
+      setIsDragging(false)
+    }, 100)
   }
 
   return (
@@ -48,6 +73,9 @@ function SortableBacklogCard({
             {...provided.draggableProps}
             {...provided.dragHandleProps}
             onContextMenu={handleContextMenu}
+            onClick={handleClick}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
             className={`
               group flex items-center gap-3 p-4 rounded-lg 
               ${snapshot.isDragging 
@@ -94,6 +122,25 @@ function SortableBacklogCard({
               </button>
             </div>
           </div>
+
+          {isEditing && (
+            <CardEditor
+              isOpen={isEditing}
+              onClose={() => setIsEditing(false)}
+              onSave={async (data) => {
+                if (onUpdate) {
+                  await onUpdate(card.id, data)
+                }
+                setIsEditing(false)
+              }}
+              initialData={{
+                title: card.title,
+                description: card.description || '',
+                color: card.color,
+                due_date: card.due_date || null
+              }}
+            />
+          )}
 
           <AnimatePresence>
             {contextMenu && (
@@ -404,52 +451,78 @@ export default function Backlog({
     }
   }
 
+  const handleUpdateCard = async (cardId: string, data: {
+    title: string
+    description: string
+    color: string | null
+    due_date: string | null
+  }) => {
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .update({
+          title: data.title,
+          description: data.description || null,
+          color: data.color,
+          due_date: data.due_date
+        })
+        .eq('id', cardId)
+
+      if (error) throw error
+
+      // Update local state
+      setCards(currentCards =>
+        currentCards.map(card =>
+          card.id === cardId
+            ? { ...card, ...data }
+            : card
+        )
+      )
+    } catch (error) {
+      console.error('Error updating card:', error)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Backlog
-          </h2>
-          <button
-            onClick={() => setIsAddingCard(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add card
-        </button>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Backlog
+        </h2>
       </div>
 
       <Droppable 
-          droppableId="backlog" 
-          direction="vertical"
-          type="card"
-        >
-          {(provided, snapshot) => (
-            <div 
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className="space-y-2 rbd-draggable-context"
-            >
-              {cards.map((card, index) => (
-                <SortableBacklogCard
-                  key={card.id}
-                  card={card}
-                  index={index}
-                  onDelete={handleDeleteCard}
-                  columns={boardColumns}
-                  onMoveToColumn={handleMoveToColumn}
-                />
-              ))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
+        droppableId="backlog" 
+        direction="vertical"
+        type="card"
+      >
+        {(provided, snapshot) => (
+          <div 
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className="space-y-2 rbd-draggable-context"
+          >
+            {cards.map((card, index) => (
+              <SortableBacklogCard
+                key={card.id}
+                card={card}
+                index={index}
+                onDelete={handleDeleteCard}
+                columns={boardColumns}
+                onMoveToColumn={handleMoveToColumn}
+                onUpdate={handleUpdateCard}
+              />
+            ))}
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
 
-        {isAddingCard && (
-          <CardEditor
-            isOpen={true}
-            onClose={() => setIsAddingCard(false)}
-            onSave={handleAddCard}
+      {isAddingCard && (
+        <CardEditor
+          isOpen={true}
+          onClose={() => setIsAddingCard(false)}
+          onSave={handleAddCard}
           columnName="Backlog"
         />
       )}

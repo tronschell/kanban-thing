@@ -603,62 +603,48 @@ export default function KanbanBoard({
   return (
     <div className="flex flex-col gap-6 py-6">
       {/* Board Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {isEditingName ? (
-            <div className="flex items-center gap-2">
-              <input
-                ref={boardNameInputRef}
-                type="text"
-                value={newBoardName}
-                onChange={(e) => setNewBoardName(e.target.value)}
-                onBlur={handleBoardNameSave}
-                onKeyDown={handleBoardNameKeyDown}
-                className="text-2xl font-bold bg-transparent border-b-2 border-blue-500 outline-none text-gray-900 dark:text-white px-1"
-                autoFocus
-              />
-              <button
-                onClick={handleBoardNameSave}
-                className="p-1 text-green-500 hover:bg-green-500/10 rounded"
-              >
-                <Check className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => {
-                  setNewBoardName(boardData?.name || '')
-                  setIsEditingName(false)
-                }}
-                className="p-1 text-red-500 hover:bg-red-500/10 rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          ) : (
-            <div className="group flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {boardData?.name || 'Untitled Board'}
-              </h1>
-              <button
-                onClick={handleBoardNameEdit}
-                className="p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-all duration-200"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </div>
-        
-        <button
-          onClick={() => setIsReorderingColumns(true)}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm 
-            bg-white dark:bg-gray-800 rounded-lg 
-            border border-gray-200 dark:border-gray-700 
-            hover:bg-gray-50 dark:hover:bg-gray-700 
-            transition-colors"
-        >
-          <Settings className="w-4 h-4" />
-          Edit Columns
-        </button>
+      <div className="flex items-center gap-4">
+        {isEditingName ? (
+          <div className="flex items-center gap-2">
+            <input
+              ref={boardNameInputRef}
+              type="text"
+              value={newBoardName}
+              onChange={(e) => setNewBoardName(e.target.value)}
+              onBlur={handleBoardNameSave}
+              onKeyDown={handleBoardNameKeyDown}
+              className="text-2xl font-bold bg-transparent border-b-2 border-blue-500 outline-none text-gray-900 dark:text-white px-1"
+              autoFocus
+            />
+            <button
+              onClick={handleBoardNameSave}
+              className="p-1 text-green-500 hover:bg-green-500/10 rounded"
+            >
+              <Check className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => {
+                setNewBoardName(boardData?.name || '')
+                setIsEditingName(false)
+              }}
+              className="p-1 text-red-500 hover:bg-red-500/10 rounded"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {boardData?.name || 'Untitled Board'}
+            </h1>
+            <button
+              onClick={handleBoardNameEdit}
+              className="p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Board Content */}
@@ -670,20 +656,13 @@ export default function KanbanBoard({
             cards={cards.filter(card => card.column_id === column.id)}
             onAddCard={() => setAddingCardToColumn(column.id)}
             onDeleteCard={handleDeleteCard}
+            onEdit={() => {
+              setIsReorderingColumns(true)
+            }}
           />
         ))}
         
-        <button
-          onClick={() => setIsAddingColumn(true)}
-          className="flex-shrink-0 w-80 h-12 flex items-center justify-center gap-2 
-            text-gray-500 dark:text-gray-400
-            bg-gray-100/50 dark:bg-gray-800/30 
-            hover:bg-gray-200/50 dark:hover:bg-gray-700/30
-            rounded-xl transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Column
-        </button>
+        <div className="hidden md:block flex-shrink-0 w-80" />
       </div>
 
       {/* Column Editor Modal */}

@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Copy, Check, LinkIcon, Menu, Trash2, Terminal as TerminalIcon } from 'lucide-react'
+import { Copy, Check, LinkIcon, Menu, Trash2, Terminal as TerminalIcon, Plus, Settings, Clock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { BoardExpirationTimer } from '@/components/board-expiration-timer'
@@ -14,6 +13,13 @@ import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui'
 import { TerminalInterface } from '@/components/terminal-interface'
 import { Card } from '@/types'
+import { CreateModal } from '@/components/create-modal'
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface NavbarProps {
   boardId?: string
@@ -75,6 +81,35 @@ export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlo
   const expiresAt = useBoardExpiration(boardId)
   const supabase = createClient()
   const [allCards, setAllCards] = useState<Card[]>([])
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [timeLeft, setTimeLeft] = useState<string>('')
+
+  // Add effect to calculate time left
+  useEffect(() => {
+    if (!expiresAt) return
+
+    const calculateTimeLeft = () => {
+      const now = new Date().getTime()
+      const expirationDate = new Date(expiresAt).getTime()
+      const difference = expirationDate - now
+
+      if (difference <= 0) {
+        return 'Expired'
+      }
+
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+
+      return `${days}d ${hours}h`
+    }
+
+    setTimeLeft(calculateTimeLeft())
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft())
+    }, 1000 * 60) // Update every minute
+
+    return () => clearInterval(timer)
+  }, [expiresAt])
 
   // Preload columns when the component mounts or boardId changes
   useEffect(() => {
@@ -486,6 +521,73 @@ Note: If no column is specified in create command, card will be created in Backl
     }
   }
 
+  // Add handler for card creation
+  const handleCreateCard = async (columnId: string, cardData: {
+    title: string
+    description: string
+    color: string | null
+    due_date: string | null
+  }) => {
+    if (!boardId) return
+
+    try {
+      const newPosition = allCards.filter(card => card.column_id === columnId).length
+
+      const { data: newCard, error } = await supabase
+        .from('cards')
+        .insert({
+          column_id: columnId,
+          title: cardData.title,
+          description: cardData.description,
+          color: cardData.color,
+          due_date: cardData.due_date,
+          position: newPosition
+        })
+        .select('*')
+        .single()
+
+      if (error) throw error
+
+      if (newCard) {
+        // Update the appropriate state based on which column the card was created in
+        if (columnId === backlogColumnId && setBacklogCards) {
+          setBacklogCards(prev => [...prev, newCard])
+        } else if (setBoardCards) {
+          setBoardCards(prev => [...prev, newCard])
+        }
+        // Also update allCards state for terminal functionality
+        setAllCards(prev => [...prev, newCard])
+      }
+    } catch (error) {
+      console.error('Error creating card:', error)
+    }
+  }
+
+  // Add handler for column creation
+  const handleCreateColumn = async (name: string) => {
+    if (!boardId) return
+
+    try {
+      const { data: newColumn, error } = await supabase
+        .from('columns')
+        .insert({
+          name,
+          board_id: boardId,
+          position: boardColumns.length
+        })
+        .select('*')
+        .single()
+
+      if (error) throw error
+
+      if (newColumn) {
+        setBoardColumns(prev => [...prev, newColumn])
+      }
+    } catch (error) {
+      console.error('Error creating column:', error)
+    }
+  }
+
   return (
     <>
       <div className="sticky top-0 z-50 pt-4">
@@ -501,36 +603,23 @@ Note: If no column is specified in create command, card will be created in Backl
           {/* Share Section with Timer and Delete Button */}
           {boardId && (
             <div className="flex items-center gap-1 sm:gap-2 mr-2">
-
-
+              {/* Create button */}
               <motion.button
-                onClick={() => setIsDeleteModalOpen(true)}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
-                  bg-red-500/10 hover:bg-red-500/20
-                  border border-red-500/20 
-                  transition-colors group cursor-pointer"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                title="Delete Board"
-              >
-                <Trash2 className="h-4 w-4 text-red-500" />
-              </motion.button>
-
-              <motion.button
-                onClick={() => setIsTerminalOpen(true)}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
+                onClick={() => setIsCreateModalOpen(true)}
+                className="flex items-center justify-center gap-2 px-2 py-1.5 rounded-lg 
                   bg-white/50 dark:bg-gray-800/50 
                   border border-gray-200/50 dark:border-gray-700/50 
                   hover:bg-gray-50 dark:hover:bg-gray-700/50 
-                  transition-colors group cursor-pointer"
+                  transition-colors group cursor-pointer min-w-[100px] sm:min-w-[120px]"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                title="Open Terminal"
+                title="Create New"
               >
-                <TerminalIcon className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
+                <Plus className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
+                <span className="text-xs text-gray-600 dark:text-gray-300">Create</span>
               </motion.button>
 
-              {/* Existing share button */}
+              {/* Copy URL button - always visible */}
               <motion.button
                 onClick={handleCopy}
                 className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
@@ -567,14 +656,102 @@ Note: If no column is specified in create command, card will be created in Backl
                 </AnimatePresence>
               </motion.button>
 
-              {/* Board Expiration Timer */}
-              {expiresAt && (
-                <BoardExpirationTimer expiresAt={expiresAt} />
-              )}
+              {/* Desktop buttons - hidden on mobile */}
+              <div className="hidden sm:flex items-center gap-1 sm:gap-2">
+                <motion.button
+                  onClick={() => setIsTerminalOpen(true)}
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
+                    bg-white/50 dark:bg-gray-800/50 
+                    border border-gray-200/50 dark:border-gray-700/50 
+                    hover:bg-gray-50 dark:hover:bg-gray-700/50 
+                    transition-colors group cursor-pointer"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  title="Open Terminal"
+                >
+                  <TerminalIcon className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
+                </motion.button>
+
+                {/* Board Expiration Timer */}
+                {expiresAt && (
+                  <BoardExpirationTimer expiresAt={expiresAt} />
+                )}
+
+                {/* Delete button */}
+                <motion.button
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
+                    bg-red-500/10 hover:bg-red-500/20
+                    border border-red-500/20 
+                    transition-colors group cursor-pointer"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  title="Delete Board"
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </motion.button>
+              </div>
+
+              {/* Mobile menu button */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <motion.button
+                    className="sm:hidden flex items-center gap-1 px-2 py-1.5 rounded-lg 
+                      bg-white/50 dark:bg-gray-800/50 
+                      border border-gray-200/50 dark:border-gray-700/50 
+                      hover:bg-gray-50 dark:hover:bg-gray-700/50 
+                      transition-colors"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Settings className="h-4 w-4 text-gray-500" />
+                  </motion.button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[200px]">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setIsTerminalOpen(true)
+                    }}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <TerminalIcon className="h-4 w-4" />
+                    <span>Terminal</span>
+                  </DropdownMenuItem>
+
+                  {expiresAt && (
+                    <DropdownMenuItem
+                      className="flex items-center gap-2 cursor-default"
+                      disabled
+                    >
+                      <Clock className="h-4 w-4" />
+                      <span>Expires in: {timeLeft}</span>
+                    </DropdownMenuItem>
+                  )}
+
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setIsDeleteModalOpen(true)
+                    }}
+                    className="flex items-center gap-2 cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Delete Board</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
         </div>
       </div>
+
+      {/* Add CreateModal */}
+      <CreateModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        columns={boardColumns}
+        onCreateCard={handleCreateCard}
+        onCreateColumn={handleCreateColumn}
+      />
 
       {/* Add Terminal Interface */}
       <TerminalInterface
