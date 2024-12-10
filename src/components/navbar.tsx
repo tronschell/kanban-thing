@@ -114,7 +114,7 @@ export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlo
   // Preload columns when the component mounts or boardId changes
   useEffect(() => {
     const loadColumns = async () => {
-      if (!boardId) return
+      if (!boardId) return;
 
       const { data: columns, error } = await supabase
         .from('columns')
@@ -124,11 +124,12 @@ export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlo
 
       if (!error && columns) {
         setBoardColumns(columns)
+        console.log('Loaded columns:', columns) // Debug log
       }
     }
 
     loadColumns()
-  }, [boardId])
+  }, [boardId, backlogColumnId]) // Add backlogColumnId as dependency to reload when it changes
 
   // Load all cards when component mounts
   useEffect(() => {
@@ -561,6 +562,13 @@ Note: If no column is specified in create command, card will be created in Backl
     } catch (error) {
       console.error('Error creating card:', error)
     }
+
+    console.log('Creating card:', {
+      columnId,
+      backlogColumnId,
+      cardData,
+      hasSetBacklogCards: !!setBacklogCards
+    })
   }
 
   // Add handler for column creation

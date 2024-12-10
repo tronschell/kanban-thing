@@ -270,37 +270,6 @@ export default function Backlog({
     }
 
     fetchBacklogCards()
-
-    // Set up realtime subscription
-    const channel = supabase
-      .channel('backlog_cards')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'cards',
-          filter: `column_id=eq.${backlogColumnId}`
-        },
-        (payload: any) => {
-          if (payload.eventType === 'INSERT') {
-            setCards(current => [...current, payload.new])
-          } else if (payload.eventType === 'DELETE') {
-            setCards(current => current.filter(card => card.id !== payload.old.id))
-          } else if (payload.eventType === 'UPDATE') {
-            setCards(current =>
-              current.map(card =>
-                card.id === payload.new.id ? { ...card, ...payload.new } : card
-              )
-            )
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
   }, [backlogColumnId])
 
   // Add effect to fetch board columns for context menu
@@ -324,33 +293,6 @@ export default function Backlog({
     }
 
     fetchBoardColumns()
-
-    // Subscribe to column changes
-    const channel = supabase
-      .channel('board_columns')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'columns',
-          filter: `board_id=eq.${boardId}`
-        },
-        (payload: any) => {
-          if (payload.eventType === 'INSERT') {
-            setBoardColumns(current => [...current, payload.new])
-          } else if (payload.eventType === 'DELETE') {
-            setBoardColumns(current => 
-              current.filter(col => col.id !== payload.old.id)
-            )
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
   }, [boardId])
 
   const handleAddCard = async (cardData: {

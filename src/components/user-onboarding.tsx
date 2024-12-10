@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { GradientBackground } from '@/components/ui/gradient-background'
 import { useAnalytics } from '@/hooks/use-analytics'
+import { motion } from 'framer-motion'
 
 export default function UserOnboarding() {
   const [boardName, setBoardName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [isExiting, setIsExiting] = useState(false)
   const router = useRouter()
   const supabase = createClient()
   const { trackEvent } = useAnalytics()
@@ -49,18 +51,30 @@ export default function UserOnboarding() {
       console.log('Setting localStorage...')
       localStorage.setItem('kanban_user_id', board.id)
       
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Trigger exit animation
+      setIsExiting(true)
+      
+      // Wait for animation to complete before navigating
+      await new Promise(resolve => setTimeout(resolve, 300))
       console.log('Navigating to:', `/board?id=${board.id}`)
       
       router.replace(`/board?id=${board.id}`)
     } catch (error) {
       console.error('Error creating board:', error)
       setIsCreating(false)
+      setIsExiting(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center px-4">
+    <motion.div 
+      className="fixed inset-0 flex items-center justify-center px-4"
+      animate={{
+        opacity: isExiting ? 0 : 1,
+        x: isExiting ? 100 : 0
+      }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
       {/* Background layer */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="absolute inset-0">
@@ -101,6 +115,6 @@ export default function UserOnboarding() {
           </button>
         </form>
       </div>
-    </div>
+    </motion.div>
   )
 } 

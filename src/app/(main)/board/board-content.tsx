@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { KanbanBoard, CalendarView, ViewSwitcher, Backlog, TimelineView, UserOnboarding, Navbar } from '@/components'
 import { createClient } from '@/lib/supabase/client'
-import { Plus } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { DragDropContext } from 'react-beautiful-dnd'
 import type { Card } from '@/types'
 import { useAnalytics } from '@/hooks/use-analytics';
@@ -39,11 +39,13 @@ export default function BoardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const boardId = searchParams.get('id')
+  const [newBoardName, setNewBoardName] = useState('')
   const [currentView, setCurrentView] = useState<'kanban' | 'calendar' | 'timeline'>('kanban')
   const [backlogCards, setBacklogCards] = useState<Card[]>([])
   const [boardCards, setBoardCards] = useState<Card[]>([])
   const [columns, setColumns] = useState<Array<{ id: string; name: string }>>([])
   const [backlogColumnId, setBacklogColumnId] = useState<string | null>(null);
+  const [boardNotFound, setBoardNotFound] = useState(false)
   const supabase = createClient()
   const { trackEvent } = useAnalytics();
 
@@ -52,6 +54,18 @@ export default function BoardContent() {
       if (!boardId) return;
 
       try {
+        // First check if board exists
+        const { data: board, error: boardError } = await supabase
+          .from('boards')
+          .select('id')
+          .eq('id', boardId)
+          .single();
+
+        if (boardError || !board) {
+          setBoardNotFound(true);
+          return;
+        }
+
         // First try to find existing backlog column
         const { data: column, error: fetchError } = await supabase
           .from('columns')
@@ -61,7 +75,7 @@ export default function BoardContent() {
           .single();
 
         if (fetchError) {
-          if (fetchError.code === 'PGRST116') {
+          if (fetchError.code === 'PGRST116') { // No rows found
             // Create backlog column if it doesn't exist
             const { data: newColumn, error: createError } = await supabase
               .from('columns')
@@ -73,36 +87,15 @@ export default function BoardContent() {
               .select('id')
               .single();
 
-            if (createError) {
-              if (createError.code === '23505') { // Unique violation
-                // Try fetching again in case of race condition
-                const { data: retryColumn } = await supabase
-                  .from('columns')
-                  .select('id')
-                  .eq('board_id', boardId)
-                  .eq('name', 'Backlog')
-                  .single();
-
-                if (retryColumn) {
-                  setBacklogColumnId(retryColumn.id);
-                }
-              } else {
-                console.error('Error creating backlog column:', createError);
-              }
-              return;
-            }
-
-            if (newColumn) {
-              setBacklogColumnId(newColumn.id);
-            }
-          } else {
-            console.error('Error fetching backlog column:', fetchError);
+            if (createError) throw createError;
+            if (newColumn) setBacklogColumnId(newColumn.id);
           }
         } else if (column) {
           setBacklogColumnId(column.id);
         }
       } catch (error) {
-        console.error('Error in initializeBacklog:', error);
+        console.error('Error initializing backlog:', error);
+        setBoardNotFound(true);
       }
     };
 
@@ -116,7 +109,7 @@ export default function BoardContent() {
         .select('*')
         .eq('board_id', boardId)
         .neq('name', 'Backlog')
-        .order('position') // Make sure to order by position
+        .order('position')
       
       if (columnsData) {
         setColumns(columnsData)
@@ -124,34 +117,30 @@ export default function BoardContent() {
     }
 
     fetchColumns()
-
-    // Add realtime subscription for column changes
-    const channel = supabase
-      .channel('columns_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'columns',
-          filter: `board_id=eq.${boardId}`
-        },
-        (payload: any) => {
-          if (payload.eventType === 'UPDATE') {
-            setColumns(current => 
-              current.map(col => 
-                col.id === payload.new.id ? { ...col, ...payload.new } : col
-              ).sort((a, b) => a.position - b.position)
-            )
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
   }, [boardId])
+
+  useEffect(() => {
+    const fetchBacklogCards = async () => {
+      if (!backlogColumnId) return;
+
+      const { data: cards, error } = await supabase
+        .from('cards')
+        .select('*')
+        .eq('column_id', backlogColumnId)
+        .order('position')
+
+      if (error) {
+        console.error('Error fetching backlog cards:', error)
+        return
+      }
+
+      if (cards) {
+        setBacklogCards(cards)
+      }
+    }
+
+    fetchBacklogCards()
+  }, [backlogColumnId])
 
   const handleDragEnd = async (result: any) => {
     const { source, destination, draggableId } = result;
@@ -314,6 +303,120 @@ export default function BoardContent() {
     }
   }
 
+  const refreshBoard = async () => {
+    // Fetch columns
+    const { data: columnsData } = await supabase
+      .from('columns')
+      .select('*')
+      .eq('board_id', boardId)
+      .neq('name', 'Backlog')
+      .order('position')
+    
+    if (columnsData) {
+      setColumns(columnsData)
+    }
+
+    // Fetch board cards
+    const { data: cardsData } = await supabase
+      .from('cards')
+      .select('*')
+      .eq('board_id', boardId)
+      .order('position')
+    
+    if (cardsData) {
+      setBoardCards(cardsData)
+    }
+
+    // Fetch backlog cards
+    if (backlogColumnId) {
+      const { data: backlogData } = await supabase
+        .from('cards')
+        .select('*')
+        .eq('column_id', backlogColumnId)
+        .order('position')
+      
+      if (backlogData) {
+        setBacklogCards(backlogData)
+      }
+    }
+  }
+
+  const handleCreateBoard = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      // 1. Create the board
+      const { data: board, error: boardError } = await supabase
+        .from('boards')
+        .insert({
+          name: newBoardName,
+          created_by: localStorage.getItem('kanban_user_id')
+        })
+        .select()
+        .single()
+
+      if (boardError) throw boardError
+
+      // 2. Create the backlog column
+      const { data: backlog, error: backlogError } = await supabase
+        .from('columns')
+        .insert({
+          board_id: board.id,
+          name: 'Backlog',
+          position: -1
+        })
+        .select()
+        .single()
+
+      if (backlogError) throw backlogError
+
+      // 3. Initialize state
+      setBacklogColumnId(backlog.id)
+      setBacklogCards([])
+      setBoardCards([])
+      setColumns([backlog])
+
+      // 4. Redirect to the new board
+      router.push(`/board?id=${board.id}`)
+
+      // 5. Fetch initial data including the backlog column
+      const { data: columnsData } = await supabase
+        .from('columns')
+        .select('*')
+        .eq('board_id', board.id)
+        .order('position')
+      
+      if (columnsData) {
+        setColumns(columnsData)
+      }
+
+    } catch (error) {
+      console.error('Error creating board:', error)
+    }
+  }
+
+  if (boardNotFound) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-950 p-4">
+        <div className="max-w-md w-full bg-gray-900 rounded-lg p-8 text-center space-y-4 border border-gray-800 relative z-50">
+          <h1 className="text-2xl font-bold text-gray-100">Board Not Found</h1>
+          <p className="text-gray-400">
+            This board may have expired or does not exist.
+          </p>
+          <button
+            onClick={() => router.push('/')}
+            className="inline-flex items-center justify-center px-4 py-2 
+              bg-blue-600 text-white rounded-lg hover:bg-blue-700 
+              transition-colors duration-200 w-full
+              cursor-pointer relative z-50"
+          >
+            Go to Home Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!boardId) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
@@ -394,6 +497,7 @@ export default function BoardContent() {
                           boardId={boardId}
                           cards={backlogCards}
                           setCards={setBacklogCards}
+                          activeId={null}
                         />
                       </div>
                     </div>

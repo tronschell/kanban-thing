@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { GradientBackground } from '@/components/ui/gradient-background'
 import BoardContent from './board-content'
+import { motion } from 'framer-motion'
 
 // Separate component to handle the search params and auth check
 function BoardPageContent() {
@@ -43,11 +44,16 @@ function BoardPageContent() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto overscroll-behavior-y-contain">
+    <motion.div 
+      className="flex-1 overflow-y-auto overscroll-behavior-y-contain"
+      initial={{ opacity: 0, x: -100 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
       <Suspense fallback={<LoadingSpinner />}>
         <BoardContent />
       </Suspense>
-    </div>
+    </motion.div>
   )
 }
 
