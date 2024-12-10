@@ -17,19 +17,20 @@ export default function UserOnboarding() {
 
   const handleCreateBoard = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!boardName.trim() || isCreating) return
+    if (!boardName.trim() || boardName.trim().length < 3 || isCreating) return
 
     setIsCreating(true)
     try {
-      console.log('Creating board...')
+      // Create board and wait for response
       const { data: board, error: boardError } = await supabase
         .from('boards')
         .insert({ name: boardName.trim() })
         .select('id')
         .single()
 
-      if (boardError) throw boardError
-      console.log('Board created with ID:', board.id)
+      if (boardError || !board?.id) {
+        throw new Error(boardError?.message || 'Failed to create board')
+      }
 
       // Track board creation
       trackEvent('create_board', {
@@ -37,7 +38,7 @@ export default function UserOnboarding() {
         board_name: boardName.trim(),
       })
 
-      // Create default columns
+      // Create default columns and wait for response
       const { error: columnsError } = await supabase
         .from('columns')
         .insert([
@@ -46,9 +47,22 @@ export default function UserOnboarding() {
           { board_id: board.id, name: 'Done', position: 2 }
         ])
 
-      if (columnsError) throw columnsError
+      if (columnsError) {
+        throw columnsError
+      }
 
-      console.log('Setting localStorage...')
+      // Verify board exists before proceeding
+      const { data: verifyBoard, error: verifyError } = await supabase
+        .from('boards')
+        .select('id')
+        .eq('id', board.id)
+        .single()
+
+      if (verifyError || !verifyBoard) {
+        throw new Error('Board verification failed')
+      }
+
+      // Set localStorage only after successful creation
       localStorage.setItem('kanban_user_id', board.id)
       
       // Trigger exit animation
@@ -56,7 +70,6 @@ export default function UserOnboarding() {
       
       // Wait for animation to complete before navigating
       await new Promise(resolve => setTimeout(resolve, 300))
-      console.log('Navigating to:', `/board?id=${board.id}`)
       
       router.replace(`/board?id=${board.id}`)
     } catch (error) {
@@ -100,7 +113,7 @@ export default function UserOnboarding() {
               value={boardName}
               onChange={(e) => setBoardName(e.target.value)}
               className="w-full p-2 border rounded-lg bg-white/10 border-white/20 text-white placeholder-gray-400"
-              placeholder="Enter board name"
+              placeholder="Enter board name (min. 3 characters)"
               required
               disabled={isCreating}
               autoFocus

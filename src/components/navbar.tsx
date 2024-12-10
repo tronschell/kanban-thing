@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Copy, Check, LinkIcon, Menu, Trash2, Terminal as TerminalIcon, Plus, Settings, Clock } from 'lucide-react'
+import { Copy, Check, LinkIcon, Menu, Trash2, Terminal as TerminalIcon, Plus, Settings, Clock, Download } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { saveAs } from 'file-saver'
 
 interface NavbarProps {
   boardId?: string
@@ -114,7 +115,7 @@ export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlo
   // Preload columns when the component mounts or boardId changes
   useEffect(() => {
     const loadColumns = async () => {
-      if (!boardId) return;
+      if (!boardId) return
 
       const { data: columns, error } = await supabase
         .from('columns')
@@ -124,12 +125,11 @@ export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlo
 
       if (!error && columns) {
         setBoardColumns(columns)
-        console.log('Loaded columns:', columns) // Debug log
       }
     }
 
     loadColumns()
-  }, [boardId, backlogColumnId]) // Add backlogColumnId as dependency to reload when it changes
+  }, [boardId])
 
   // Load all cards when component mounts
   useEffect(() => {
@@ -562,13 +562,6 @@ Note: If no column is specified in create command, card will be created in Backl
     } catch (error) {
       console.error('Error creating card:', error)
     }
-
-    console.log('Creating card:', {
-      columnId,
-      backlogColumnId,
-      cardData,
-      hasSetBacklogCards: !!setBacklogCards
-    })
   }
 
   // Add handler for column creation
@@ -594,6 +587,61 @@ Note: If no column is specified in create command, card will be created in Backl
     } catch (error) {
       console.error('Error creating column:', error)
     }
+  }
+
+  // Add new helper function to prepare export data
+  const prepareExportData = async () => {
+    if (!boardId) return null
+
+    // Fetch fresh data to ensure we have everything
+    const { data: columns } = await supabase
+      .from('columns')
+      .select('id, name, position')
+      .eq('board_id', boardId)
+      .order('position')
+
+    const { data: cards } = await supabase
+      .from('cards')
+      .select('*')
+      .in('column_id', columns?.map(col => col.id) || [])
+
+    return {
+      columns: columns || [],
+      cards: cards || [],
+      exported_at: new Date().toISOString(),
+      board_id: boardId
+    }
+  }
+
+  // Add export handlers
+  const handleExportJSON = async () => {
+    const data = await prepareExportData()
+    if (!data) return
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    saveAs(blob, `kanban-export-${boardId}-${new Date().toISOString()}.json`)
+  }
+
+  const handleExportCSV = async () => {
+    const data = await prepareExportData()
+    if (!data) return
+
+    // Prepare CSV content
+    const headers = 'Column Name,Card Title,Description,Color,Due Date,Position\n'
+    const rows = data.cards.map(card => {
+      const column = data.columns.find(col => col.id === card.column_id)
+      return [
+        `"${column?.name || ''}"`,
+        `"${card.title}"`,
+        `"${card.description || ''}"`,
+        card.color || '',
+        card.due_date || '',
+        card.position
+      ].join(',')
+    }).join('\n')
+
+    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8' })
+    saveAs(blob, `kanban-export-${boardId}-${new Date().toISOString()}.csv`)
   }
 
   return (
@@ -666,6 +714,31 @@ Note: If no column is specified in create command, card will be created in Backl
 
               {/* Desktop buttons - hidden on mobile */}
               <div className="hidden sm:flex items-center gap-1 sm:gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <motion.button
+                      className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
+                        bg-white/50 dark:bg-gray-800/50 
+                        border border-gray-200/50 dark:border-gray-700/50 
+                        hover:bg-gray-50 dark:hover:bg-gray-700/50 
+                        transition-colors group cursor-pointer"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      title="Export Board"
+                    >
+                      <Download className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
+                    </motion.button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleExportJSON}>
+                      Export as JSON
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportCSV}>
+                      Export as CSV
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 <motion.button
                   onClick={() => setIsTerminalOpen(true)}
                   className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
@@ -735,6 +808,21 @@ Note: If no column is specified in create command, card will be created in Backl
                       <span>Expires in: {timeLeft}</span>
                     </DropdownMenuItem>
                   )}
+
+                  <DropdownMenuItem
+                    onClick={handleExportJSON}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Export as JSON</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={handleExportCSV}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Export as CSV</span>
+                  </DropdownMenuItem>
 
                   <DropdownMenuItem
                     onClick={() => {
