@@ -8,6 +8,7 @@ import { Plus, GripVertical, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import CardEditor from './card-editor'
 import dynamic from 'next/dynamic'
+import { formatDueDate, getDueDateColor } from '@/lib/date-utils'
 
 // Dynamic import for ContextMenu with no SSR
 const ContextMenu = dynamic(
@@ -99,13 +100,21 @@ function SortableBacklogCard({
                 </p>
               )}
             </div>
-            {card.color && (
-              <div 
-                className="w-2 h-2 rounded-full flex-shrink-0" 
-                style={{ backgroundColor: card.color }} 
-              />
-            )}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
+              {card.due_date && (
+                <span className={`
+                  inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                  ${getDueDateColor(card.due_date)}
+                `}>
+                  {formatDueDate(card.due_date)}
+                </span>
+              )}
+              {card.color && (
+                <div 
+                  className="w-2 h-2 rounded-full flex-shrink-0" 
+                  style={{ backgroundColor: card.color }} 
+                />
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation()

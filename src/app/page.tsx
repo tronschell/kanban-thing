@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -7,32 +7,53 @@ import { GradientBackground } from "@/components/ui/gradient-background";
 import { PreviewCard } from "@/components/ui/preview-card";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+// Add this type
+type Stats = {
+  boardsCreated: number;
+  cardsCreated: number;
+  cardsMoved: number;
+};
+
+// First, add this animation variant near your other variants at the top
+const statsVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      duration: 0.5,
+      ease: "easeOut",
+      delay: 0.4,
+    },
+  },
+};
 
 export default function Home() {
-  const router = useRouter()
+  const router = useRouter();
   // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.2,
-        delayChildren: 0.1
-      }
-    }
-  }
+        staggerChildren: 0.3,
+        delayChildren: 0.1,
+      },
+    },
+  };
 
   const itemVariants = {
     hidden: { opacity: 0, y: -20 },
-    show: { 
-      opacity: 1, 
+    show: {
+      opacity: 1,
       y: 0,
       transition: {
         duration: 0.5,
-        ease: "easeOut"
-      }
-    }
-  }
+        ease: "easeOut",
+      },
+    },
+  };
 
   const featureCardsVariants = {
     hidden: { opacity: 0 },
@@ -40,49 +61,107 @@ export default function Home() {
       opacity: 1,
       transition: {
         staggerChildren: 0.1,
-        delayChildren: 0.1 // Start after app preview
-      }
-    }
-  }
+        delayChildren: 0.1, // Start after app preview
+      },
+    },
+  };
 
   const featureCardVariants = {
     hidden: { opacity: 0, y: 20 },
-    show: { 
-      opacity: 1, 
+    show: {
+      opacity: 1,
       y: 0,
       transition: {
         duration: 0.2,
-        ease: "easeOut"
-      }
-    }
-  }
+        ease: "easeOut",
+      },
+    },
+  };
 
   const handleCreateBoard = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     // First animate the page out
-    const container = document.getElementById('main-container')
+    const container = document.getElementById("main-container");
     if (container) {
-      await container.animate([
-        { opacity: 1, transform: 'translateX(0)' },
-        { opacity: 0, transform: 'translateX(100px)' }
-      ], {
-        duration: 300,
-        easing: 'ease-out',
-        fill: 'forwards'
-      }).finished
+      await container.animate(
+        [
+          { opacity: 1, transform: "translateX(0)" },
+          { opacity: 0, transform: "translateX(100px)" },
+        ],
+        {
+          duration: 300,
+          easing: "ease-out",
+          fill: "forwards",
+        }
+      ).finished;
     }
 
     // Then navigate
-    router.push('/onboarding')
-  }
+    router.push("/onboarding");
+  };
+
+  const StatsDisplay = () => {
+    const [stats, setStats] = useState<Stats>({ boardsCreated: 0, cardsCreated: 0, cardsMoved: 0 });
+
+    useEffect(() => {
+      const fetchStats = async () => {
+        try {
+          const response = await fetch("/api/stats");
+          const data = await response.json();
+          setTimeout(() => setStats(data), 1000);
+        } catch (error) {
+          console.error("Failed to fetch stats:", error);
+        }
+      };
+
+      fetchStats();
+    }, []);
+
+    const removeLeadingZeros = (str: string) => str.replace(/^0+/, '');
+
+    return (
+      <motion.p
+        variants={statsVariants}
+        className="text-sm md:text-base text-white/60 mb-8 md:mb-12"
+      >
+        <motion.span
+          key={`boards-${stats.boardsCreated}`}
+          animate={{ opacity: 1 }}
+          initial={{ opacity: 0.4 }}
+          transition={{ duration: 0.5 }}
+        >
+          {removeLeadingZeros(stats.boardsCreated.toString())}
+        </motion.span>
+        {" boards created • "}
+        <motion.span
+          key={`cards-${stats.cardsCreated}`}
+          animate={{ opacity: 1 }}
+          initial={{ opacity: 0.4 }}
+          transition={{ duration: 0.5 }}
+        >
+          {removeLeadingZeros(stats.cardsCreated.toString())}
+        </motion.span>
+        {" cards created • "}
+        <motion.span
+          key={`moved-${stats.cardsMoved}`}
+          animate={{ opacity: 1 }}
+          initial={{ opacity: 0.4 }}
+          transition={{ duration: 0.5 }}
+        >
+          {removeLeadingZeros(stats.cardsMoved.toString())}
+        </motion.span>
+        {" cards moved"}
+      </motion.p>
+    );
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-950 overflow-x-hidden">
       <GradientBackground />
 
       {/* Hero Section */}
-      <motion.main 
+      <motion.main
         id="main-container"
         className="relative flex-1 flex flex-col p-4 md:p-20"
         variants={containerVariants}
@@ -90,23 +169,27 @@ export default function Home() {
         animate="show"
       >
         <div className="max-w-5xl mx-auto text-center">
-          <motion.h1 
-            variants={itemVariants}
-            className="text-5xl md:text-8xl font-bold text-white mb-6 md:mb-8 tracking-tight"
-          >
-            KanbanThing
-          </motion.h1>
+          <div className="relative">
+            <motion.h1
+              variants={itemVariants}
+              className="text-5xl md:text-8xl font-bold text-white mb-6 md:mb-8 tracking-tight"
+            >
+              KanbanThing
+            </motion.h1>
+          </div>
 
-          <motion.p 
+          <motion.p
             variants={itemVariants}
-            className="text-lg md:text-2xl text-white/90 mb-8 md:mb-12 max-w-3xl mx-auto leading-relaxed px-2"
+            className="text-lg md:text-2xl text-white/90 mb-4 max-w-3xl mx-auto leading-relaxed px-2"
           >
             Built to make you extraordinarily productive.
             <br className="hidden sm:block" />
             The easiest way to organize your work.
           </motion.p>
 
-          <motion.div 
+          <StatsDisplay />
+
+          <motion.div
             variants={itemVariants}
             className="flex flex-col sm:flex-row gap-4 justify-center px-1"
           >
@@ -120,7 +203,7 @@ export default function Home() {
           </motion.div>
 
           {/* App Preview */}
-          <motion.div 
+          <motion.div
             variants={itemVariants}
             className="mt-8 sm:mt-20 relative px-1"
           >
@@ -206,12 +289,15 @@ export default function Home() {
           </motion.div>
 
           {/* Features Section */}
-          <motion.div 
+          <motion.div
             variants={featureCardsVariants}
             className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 mt-12 md:mt-20 px-1"
           >
             {/* No Sign-up Card */}
-            <motion.div variants={featureCardVariants} className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]">
+            <motion.div
+              variants={featureCardVariants}
+              className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]"
+            >
               <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="relative space-y-3">
                 <div className="flex items-center gap-3">
@@ -241,7 +327,10 @@ export default function Home() {
               </div>
             </motion.div>
             {/* Always Free Card */}
-            <motion.div variants={featureCardVariants} className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]">
+            <motion.div
+              variants={featureCardVariants}
+              className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]"
+            >
               <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="relative space-y-3">
                 <div className="flex items-center gap-3">
@@ -271,7 +360,10 @@ export default function Home() {
               </div>
             </motion.div>
             {/* Board Lifespan Card */}
-            <motion.div variants={featureCardVariants} className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]">
+            <motion.div
+              variants={featureCardVariants}
+              className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]"
+            >
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="relative space-y-3">
                 <div className="flex items-center gap-3">

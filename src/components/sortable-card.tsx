@@ -27,6 +27,44 @@ interface SortableCardProps {
   }) => Promise<void>
 }
 
+const formatDueDate = (dueDate: string) => {
+  // Create date object from PostgreSQL timestamp and adjust for timezone
+  const due = new Date(dueDate);
+  const dueUTC = new Date(due.getTime() + due.getTimezoneOffset() * 60000);
+  
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const dayAfterTomorrow = new Date(today);
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+
+  // Reset all times to start of day in local timezone
+  today.setHours(0, 0, 0, 0);
+  tomorrow.setHours(0, 0, 0, 0);
+  dayAfterTomorrow.setHours(0, 0, 0, 0);
+  dueUTC.setHours(0, 0, 0, 0);
+
+  if (dueUTC.getTime() === today.getTime()) return 'today';
+  if (dueUTC.getTime() === tomorrow.getTime()) return 'tomorrow';
+  if (dueUTC.getTime() === dayAfterTomorrow.getTime()) return 'in 2 days';
+  
+  return dueUTC.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+const getDueDateColor = (dueDate: string) => {
+  const due = new Date(dueDate);
+  const dueUTC = new Date(due.getTime() + due.getTimezoneOffset() * 60000);
+  
+  const today = new Date();
+  const twoDaysFromNow = new Date(today);
+  twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
+  twoDaysFromNow.setHours(23, 59, 59, 999);
+
+  return dueUTC.getTime() <= twoDaysFromNow.getTime()
+    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+    : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+};
+
 export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -106,6 +144,17 @@ export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardPr
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 line-clamp-2 break-words">
                   {card.description}
                 </p>
+              )}
+              
+              {card.due_date && (
+                <div className="mt-2">
+                  <span className={`
+                    inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                    ${getDueDateColor(card.due_date)}
+                  `}>
+                    {formatDueDate(card.due_date)}
+                  </span>
+                </div>
               )}
             </div>
           </div>
