@@ -116,7 +116,8 @@ function Column({
   column, 
   cards, 
   onAddCard, 
-  onDeleteCard, 
+  onDeleteCard,
+  onUpdateCard,
   isDraggingCard,
   activeDropIndex 
 }: {
@@ -124,6 +125,7 @@ function Column({
   cards: Card[]
   onAddCard: () => void
   onDeleteCard: (id: string) => void
+  onUpdateCard: (cardId: string, data: any) => Promise<void>
   isDraggingCard: boolean
   activeDropIndex: number | null
 }) {
@@ -157,9 +159,9 @@ function Column({
           >
             <SortableCard
               card={card}
-              containerId={column.id}
-              onDelete={() => onDeleteCard(card.id)}
               index={index}
+              onDelete={() => onDeleteCard(card.id)}
+              onUpdate={onUpdateCard}
             />
           </div>
         ))}
@@ -656,6 +658,7 @@ export default function KanbanBoard({
             cards={cards.filter(card => card.column_id === column.id)}
             onAddCard={() => setAddingCardToColumn(column.id)}
             onDeleteCard={handleDeleteCard}
+            onUpdateCard={handleUpdateCard}
             onEdit={() => {
               setIsReorderingColumns(true)
             }}

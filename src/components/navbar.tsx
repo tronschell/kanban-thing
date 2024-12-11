@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Copy, Check, LinkIcon, Menu, Trash2, Terminal as TerminalIcon, Plus, Settings, Clock, Download } from 'lucide-react'
+import { Copy, Check, LinkIcon, Menu, Trash2, Terminal as TerminalIcon, Plus, Settings, Clock, Download, Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -84,6 +84,9 @@ export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlo
   const [allCards, setAllCards] = useState<Card[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [timeLeft, setTimeLeft] = useState<string>('')
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [isSettingPassword, setIsSettingPassword] = useState(false)
 
   // Add effect to calculate time left
   useEffect(() => {
@@ -644,6 +647,41 @@ Note: If no column is specified in create command, card will be created in Backl
     saveAs(blob, `kanban-export-${boardId}-${new Date().toISOString()}.csv`)
   }
 
+  const handleSetPassword = async () => {
+    if (!boardId) return
+    setIsSettingPassword(true)
+
+    try {
+      console.log('Setting password:', { boardId, newPassword })
+
+      const response = await fetch('/api/board/password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          boardId,
+          password: newPassword,
+          action: 'set'
+        })
+      })
+
+      const data = await response.json()
+      console.log('Set password response:', { response, data })
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to set password')
+      }
+
+      setIsPasswordModalOpen(false)
+      setNewPassword('')
+    } catch (err) {
+      console.error('Error setting password:', err)
+    } finally {
+      setIsSettingPassword(false)
+    }
+  }
+
   return (
     <>
       <div className="sticky top-0 z-50 pt-4">
@@ -714,31 +752,6 @@ Note: If no column is specified in create command, card will be created in Backl
 
               {/* Desktop buttons - hidden on mobile */}
               <div className="hidden sm:flex items-center gap-1 sm:gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <motion.button
-                      className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
-                        bg-white/50 dark:bg-gray-800/50 
-                        border border-gray-200/50 dark:border-gray-700/50 
-                        hover:bg-gray-50 dark:hover:bg-gray-700/50 
-                        transition-colors group cursor-pointer"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      title="Export Board"
-                    >
-                      <Download className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
-                    </motion.button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleExportJSON}>
-                      Export as JSON
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleExportCSV}>
-                      Export as CSV
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
                 <motion.button
                   onClick={() => setIsTerminalOpen(true)}
                   className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
@@ -753,24 +766,62 @@ Note: If no column is specified in create command, card will be created in Backl
                   <TerminalIcon className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
                 </motion.button>
 
+                {/* Settings Dropdown for Desktop */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <motion.button
+                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg 
+                        bg-white/50 dark:bg-gray-800/50 
+                        border border-gray-200/50 dark:border-gray-700/50 
+                        hover:bg-gray-50 dark:hover:bg-gray-700/50 
+                        transition-colors"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Settings className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
+                    </motion.button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-[200px]">
+                    {/* Password Protection */}
+                    <DropdownMenuItem
+                      onClick={() => setIsPasswordModalOpen(true)}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Lock className="h-4 w-4" />
+                      <span>Password Protection</span>
+                    </DropdownMenuItem>
+
+                    {/* Export Options */}
+                    <DropdownMenuItem
+                      onClick={handleExportJSON}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Export as JSON</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleExportCSV}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Export as CSV</span>
+                    </DropdownMenuItem>
+
+                    {/* Delete Board */}
+                    <DropdownMenuItem
+                      onClick={() => setIsDeleteModalOpen(true)}
+                      className="flex items-center gap-2 cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Delete Board</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 {/* Board Expiration Timer */}
                 {expiresAt && (
                   <BoardExpirationTimer expiresAt={expiresAt} />
                 )}
-
-                {/* Delete button */}
-                <motion.button
-                  onClick={() => setIsDeleteModalOpen(true)}
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
-                    bg-red-500/10 hover:bg-red-500/20
-                    border border-red-500/20 
-                    transition-colors group cursor-pointer"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  title="Delete Board"
-                >
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </motion.button>
               </div>
 
               {/* Mobile menu button */}
@@ -822,6 +873,14 @@ Note: If no column is specified in create command, card will be created in Backl
                   >
                     <Download className="h-4 w-4" />
                     <span>Export as CSV</span>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    onClick={() => setIsPasswordModalOpen(true)}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <Lock className="h-4 w-4" />
+                    <span>Password Protection</span>
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
@@ -882,6 +941,49 @@ Note: If no column is specified in create command, card will be created in Backl
               disabled={isDeleting}
             >
               {isDeleting ? 'Deleting...' : 'Delete Board'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        title="Password Protection"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 dark:text-gray-300">
+            Set a password to restrict access to this board. Leave empty to remove password protection.
+          </p>
+          <div>
+            <label 
+              htmlFor="boardPassword" 
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
+              Board Password
+            </label>
+            <input
+              id="boardPassword"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+              placeholder="Enter password or leave empty"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              onClick={() => setIsPasswordModalOpen(false)}
+              variant="outline"
+              disabled={isSettingPassword}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSetPassword}
+              disabled={isSettingPassword}
+            >
+              {isSettingPassword ? 'Saving...' : 'Save Password'}
             </Button>
           </div>
         </div>

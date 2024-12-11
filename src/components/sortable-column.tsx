@@ -25,11 +25,17 @@ interface SortableColumnProps {
   column: Column
   cards: Card[]
   onAddCard: () => void
-  onDeleteCard: (cardId: string) => void
+  onDeleteCard: (id: string) => void
+  onUpdateCard: (cardId: string, data: {
+    title: string
+    description: string
+    color: string | null
+    due_date: string | null
+  }) => Promise<void>
   onEdit: () => void
 }
 
-export function SortableColumn({ column, cards, onAddCard, onDeleteCard, onEdit }: SortableColumnProps) {
+export function SortableColumn({ column, cards, onAddCard, onDeleteCard, onUpdateCard, onEdit }: SortableColumnProps) {
   return (
     <div className="w-80 flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 touch-none border border-gray-200 dark:border-gray-700">
       <div className="flex justify-between items-center mb-4">
@@ -70,7 +76,8 @@ export function SortableColumn({ column, cards, onAddCard, onDeleteCard, onEdit 
                 key={card.id}
                 card={card}
                 index={index}
-                onDelete={onDeleteCard}
+                onDelete={() => onDeleteCard(card.id)}
+                onUpdate={onUpdateCard}
               />
             ))}
             {provided.placeholder}

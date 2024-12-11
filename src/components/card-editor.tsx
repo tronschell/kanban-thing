@@ -39,6 +39,7 @@ interface CardEditorProps {
   }
   availableTags?: Tag[] // All tags available in the board
   onCreateTag?: (name: string) => Promise<Tag>
+  isEditing?: boolean
 }
 
 function formatDateForInput(dateString: string | null): string {
@@ -54,6 +55,7 @@ export default function CardEditor({
   initialData,
   availableTags = [],
   onCreateTag,
+  isEditing,
 }: CardEditorProps) {
   const [title, setTitle] = useState(initialData?.title || '')
   const [description, setDescription] = useState(initialData?.description || '')
@@ -112,7 +114,11 @@ export default function CardEditor({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Add Card to ${columnName}`}>
+    <Modal 
+      isOpen={isOpen} 
+      onClose={onClose} 
+      title={isEditing ? 'Edit Card' : columnName ? `Add Card to ${columnName}` : 'Add Card'}
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">Title</label>

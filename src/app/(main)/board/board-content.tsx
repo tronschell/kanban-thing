@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { KanbanBoard, CalendarView, ViewSwitcher, Backlog, TimelineView, UserOnboarding, Navbar } from '@/components'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw, Lock } from 'lucide-react'
 import { DragDropContext } from 'react-beautiful-dnd'
 import type { Card } from '@/types'
 import { useAnalytics } from '@/hooks/use-analytics';
+import { PasswordProtection } from '@/components/password-protection'
 
 const recordCardHistory = async (
   supabase: any,
@@ -48,6 +49,8 @@ export default function BoardContent() {
   const [boardNotFound, setBoardNotFound] = useState(false)
   const supabase = createClient()
   const { trackEvent } = useAnalytics();
+  const [isPasswordProtected, setIsPasswordProtected] = useState(false)
+  const [hasPasswordAccess, setHasPasswordAccess] = useState(false)
 
   useEffect(() => {
     const initializeBacklog = async () => {
@@ -141,6 +144,38 @@ export default function BoardContent() {
 
     fetchBacklogCards()
   }, [backlogColumnId])
+
+  useEffect(() => {
+    const checkPasswordProtection = async () => {
+      if (!boardId) return
+
+      try {
+        // Check if board has password
+        const { data: board } = await supabase
+          .from('boards')
+          .select('password_hash')
+          .eq('id', boardId)
+          .single()
+
+        const hasPassword = !!board?.password_hash
+        console.log('Board password status:', { hasPassword, boardId })
+
+        setIsPasswordProtected(hasPassword)
+
+        if (hasPassword) {
+          // Check if user has already verified the password
+          const hasAccess = localStorage.getItem(`board_access_${boardId}`) === 'true'
+          setHasPasswordAccess(hasAccess)
+        } else {
+          setHasPasswordAccess(true)
+        }
+      } catch (err) {
+        console.error('Error checking password protection:', err)
+      }
+    }
+
+    checkPasswordProtection()
+  }, [boardId])
 
   const handleDragEnd = async (result: any) => {
     const { source, destination, draggableId } = result;
@@ -454,6 +489,15 @@ export default function BoardContent() {
           </div>
         </div>
       </div>
+    )
+  }
+
+  if (isPasswordProtected && !hasPasswordAccess) {
+    return (
+      <PasswordProtection 
+        boardId={boardId!} 
+        onSuccess={() => setHasPasswordAccess(true)} 
+      />
     )
   }
 

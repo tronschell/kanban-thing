@@ -19,7 +19,7 @@ interface SortableCardProps {
   card: Card
   index: number
   onDelete: (cardId: string) => void
-  onUpdate?: (cardId: string, data: {
+  onUpdate: (cardId: string, data: {
     title: string
     description: string
     color: string | null
@@ -44,9 +44,9 @@ const formatDueDate = (dueDate: string) => {
   dayAfterTomorrow.setHours(0, 0, 0, 0);
   dueUTC.setHours(0, 0, 0, 0);
 
-  if (dueUTC.getTime() === today.getTime()) return 'today';
-  if (dueUTC.getTime() === tomorrow.getTime()) return 'tomorrow';
-  if (dueUTC.getTime() === dayAfterTomorrow.getTime()) return 'in 2 days';
+  if (dueUTC.getTime() === today.getTime()) return 'Today';
+  if (dueUTC.getTime() === tomorrow.getTime()) return 'Tomorrow';
+  if (dueUTC.getTime() === dayAfterTomorrow.getTime()) return 'In 2 days';
   
   return dueUTC.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
@@ -58,11 +58,24 @@ const getDueDateColor = (dueDate: string) => {
   const today = new Date();
   const twoDaysFromNow = new Date(today);
   twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
-  twoDaysFromNow.setHours(23, 59, 59, 999);
 
-  return dueUTC.getTime() <= twoDaysFromNow.getTime()
-    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-    : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+  // Reset times to start of day
+  today.setHours(0, 0, 0, 0);
+  twoDaysFromNow.setHours(23, 59, 59, 999);
+  dueUTC.setHours(0, 0, 0, 0);
+
+  // If date has passed, show gray
+  if (dueUTC < today) {
+    return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+  }
+
+  // If date is within next 2 days (including today), show red
+  if (dueUTC <= twoDaysFromNow) {
+    return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+  }
+
+  // For future dates beyond 2 days, show gray
+  return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
 };
 
 export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardProps) {
@@ -94,6 +107,21 @@ export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardPr
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     setShowDeleteConfirm(true)
+  }
+
+  const handleSave = async (data: {
+    title: string
+    description: string
+    color: string | null
+    due_date: string | null
+  }) => {
+    try {
+      await onUpdate(card.id, data)
+      setIsEditing(false)
+    } catch (error) {
+      console.error('Failed to update card:', error)
+      // Optionally show an error message to the user
+    }
   }
 
   return (
@@ -199,18 +227,14 @@ export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardPr
         <CardEditor
           isOpen={isEditing}
           onClose={() => setIsEditing(false)}
-          onSave={async (data) => {
-            if (onUpdate) {
-              await onUpdate(card.id, data)
-            }
-            setIsEditing(false)
-          }}
+          onSave={handleSave}
           initialData={{
             title: card.title,
             description: card.description || '',
             color: card.color,
             due_date: card.due_date || null
           }}
+          isEditing={true}
         />
       )}
     </>

@@ -134,7 +134,7 @@ function SortableBacklogCard({
 
           {isEditing && (
             <CardEditor
-              isOpen={isEditing}
+              isOpen={true}
               onClose={() => setIsEditing(false)}
               onSave={async (data) => {
                 if (onUpdate) {
@@ -148,6 +148,7 @@ function SortableBacklogCard({
                 color: card.color,
                 due_date: card.due_date || null
               }}
+              isEditing={true}
             />
           )}
 
