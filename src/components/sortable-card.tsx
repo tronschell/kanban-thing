@@ -143,6 +143,7 @@ export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardPr
               ${snapshot.isDragging ? 'shadow-xl ring-2 ring-blue-500/20' : ''}
               transition-[box-shadow] duration-200
               cursor-grab active:cursor-grabbing
+              max-w-full overflow-hidden
             `}
           >
             {card.color && (
@@ -154,7 +155,7 @@ export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardPr
 
             <div className={`${card.color ? 'pt-2' : ''}`}>
               <div className="flex justify-between items-start gap-2">
-                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1">
                   {card.title}
                 </h4>
                 <button
@@ -162,14 +163,15 @@ export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardPr
                   className="p-1 opacity-0 group-hover:opacity-100 
                     text-gray-400 hover:text-red-500 
                     hover:bg-red-50 dark:hover:bg-red-900/20
-                    rounded transition-all duration-200"
+                    rounded transition-all duration-200
+                    flex-shrink-0"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
 
               {card.description && (
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 line-clamp-2 break-words">
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 line-clamp-2 break-words overflow-hidden text-ellipsis">
                   {card.description}
                 </p>
               )}
