@@ -153,7 +153,6 @@ export default function CardEditor({
               onChange={(e) => setDescription(e.target.value)}
               className="w-full p-2 border rounded dark:border-gray-700 dark:bg-gray-900 min-h-[100px]"
               placeholder="Supports markdown formatting"
-              required
             />
           )}
         </div>
@@ -190,7 +189,6 @@ export default function CardEditor({
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
             className="w-full p-2 border rounded dark:border-gray-700 dark:bg-gray-900"
-            required
           />
         </div>
 

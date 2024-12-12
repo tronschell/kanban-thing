@@ -176,10 +176,10 @@ function BacklogDropIndicator({ isOver }: { isOver: boolean }) {
   return (
     <div
       className={`
-        h-16 rounded-lg border-2 border-dashed transition-colors mb-2
+        absolute inset-0 rounded-lg border-2 border-dashed transition-colors pointer-events-none
         ${isOver 
           ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-900/20' 
-          : 'border-gray-200/50 dark:border-gray-700/50'
+          : 'border-transparent'
         }
       `}
     />
@@ -193,60 +193,24 @@ interface ColumnPayload {
   old: { id: string }
 }
 
+interface BacklogProps { 
+  boardId: string
+  cards: Card[]
+  setCards: React.Dispatch<React.SetStateAction<Card[]>>
+  activeId: string | null
+  backlogColumnId: string | null
+}
+
 export default function Backlog({ 
   boardId, 
   cards,
   setCards,
   activeId,
-}: { 
-  boardId: string
-  cards: Card[]
-  setCards: React.Dispatch<React.SetStateAction<Card[]>>
-  activeId: string | null
-}) {
+  backlogColumnId
+}: BacklogProps) {
   const [isAddingCard, setIsAddingCard] = useState(false)
-  const [backlogColumnId, setBacklogColumnId] = useState<string | null>(null)
   const [boardColumns, setBoardColumns] = useState<Array<{ id: string; name: string }>>([])
   const supabase = createClient()
-
-  // First, initialize or fetch the backlog column
-  useEffect(() => {
-    const initializeBacklog = async () => {
-      // Try to find existing backlog column
-      const { data: columns, error: fetchError } = await supabase
-        .from('columns')
-        .select('id, name')
-        .eq('board_id', boardId)
-        .eq('name', 'Backlog')
-        .single()
-
-      if (fetchError && fetchError.code === 'PGRST116') {
-        // Create backlog column if it doesn't exist
-        const { data: newColumn, error: createError } = await supabase
-          .from('columns')
-          .insert({
-            board_id: boardId,
-            name: 'Backlog',
-            position: -1
-          })
-          .select('id')
-          .single()
-
-        if (createError) {
-          console.error('Error creating backlog column:', createError)
-          return
-        }
-
-        if (newColumn) {
-          setBacklogColumnId(newColumn.id)
-        }
-      } else if (columns) {
-        setBacklogColumnId(columns.id)
-      }
-    }
-
-    initializeBacklog()
-  }, [boardId])
 
   // Then fetch cards when we have the backlog column ID
   useEffect(() => {
@@ -452,19 +416,28 @@ export default function Backlog({
           <div 
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className="space-y-2 rbd-draggable-context"
+            className={`
+              relative min-h-[12rem] p-4 rounded-lg
+              bg-gray-50 dark:bg-gray-800/50 
+              border border-gray-200/50 dark:border-gray-700/50
+              transition-colors
+            `}
           >
-            {cards.map((card, index) => (
-              <SortableBacklogCard
-                key={card.id}
-                card={card}
-                index={index}
-                onDelete={handleDeleteCard}
-                columns={boardColumns}
-                onMoveToColumn={handleMoveToColumn}
-                onUpdate={handleUpdateCard}
-              />
-            ))}
+            <BacklogDropIndicator isOver={snapshot.isDraggingOver} />
+            
+            <div className="relative z-10 space-y-2">
+              {cards.map((card, index) => (
+                <SortableBacklogCard
+                  key={card.id}
+                  card={card}
+                  index={index}
+                  onDelete={handleDeleteCard}
+                  columns={boardColumns}
+                  onMoveToColumn={handleMoveToColumn}
+                  onUpdate={handleUpdateCard}
+                />
+              ))}
+            </div>
             {provided.placeholder}
           </div>
         )}

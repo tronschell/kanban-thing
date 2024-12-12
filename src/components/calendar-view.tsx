@@ -27,10 +27,26 @@ interface DayEventsModalProps {
 }
 
 function DayEventsModal({ isOpen, onClose, date, events }: DayEventsModalProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const INITIAL_EVENTS_TO_SHOW = 7
+
+  // Sort events by most recent timestamp for the selected date
+  const sortedEvents = events.map(event => ({
+    ...event,
+    // Filter changes for the selected date and get the most recent one
+    latestChange: event.column_changes
+      .filter(change => isSameDay(parseISO(change.timestamp), date))
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
+  }))
+  .sort((a, b) => new Date(b.latestChange.timestamp).getTime() - new Date(a.latestChange.timestamp).getTime())
+
+  const visibleEvents = isExpanded ? sortedEvents : sortedEvents.slice(0, INITIAL_EVENTS_TO_SHOW)
+  const hasMoreEvents = sortedEvents.length > INITIAL_EVENTS_TO_SHOW
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={format(date, 'PPPP')}>
       <div className="space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
-        {events.map(event => (
+        {visibleEvents.map(event => (
           <div 
             key={event.id} 
             className="space-y-2 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
@@ -45,21 +61,22 @@ function DayEventsModal({ isOpen, onClose, date, events }: DayEventsModalProps) 
               <h4 className="font-medium truncate">{event.title}</h4>
             </div>
             <div className="space-y-2">
-              {event.column_changes.filter(change => 
-                isSameDay(parseISO(change.timestamp), date)
-              ).map((change, idx) => (
-                <div 
-                  key={idx} 
-                  className="ml-5 text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2"
-                >
-                  <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span className="break-words">
-                    Moved from <span className="font-medium">{change.from}</span>{' '}
-                    to <span className="font-medium">{change.to}</span>{' '}
-                    at {format(parseISO(change.timestamp), 'p')}
-                  </span>
-                </div>
-              ))}
+              {event.column_changes
+                .filter(change => isSameDay(parseISO(change.timestamp), date))
+                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                .map((change, idx) => (
+                  <div 
+                    key={idx} 
+                    className="ml-5 text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2"
+                  >
+                    <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span className="break-words">
+                      Moved from <span className="font-medium">{change.from}</span>{' '}
+                      to <span className="font-medium">{change.to}</span>{' '}
+                      at {format(parseISO(change.timestamp), 'p')}
+                    </span>
+                  </div>
+                ))}
             </div>
           </div>
         ))}
@@ -67,6 +84,17 @@ function DayEventsModal({ isOpen, onClose, date, events }: DayEventsModalProps) 
           <p className="text-gray-500 dark:text-gray-400 text-center py-4">
             No card updates on this day.
           </p>
+        )}
+        
+        {hasMoreEvents && !isExpanded && (
+          <button
+            onClick={() => setIsExpanded(true)}
+            className="w-full py-2 px-3 text-sm text-gray-600 dark:text-gray-400 
+              hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-lg
+              flex items-center justify-center gap-1 transition-colors"
+          >
+            Show {sortedEvents.length - INITIAL_EVENTS_TO_SHOW} more updates
+          </button>
         )}
       </div>
     </Modal>

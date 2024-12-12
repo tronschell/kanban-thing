@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Modal } from '@/components/ui'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
-import { GripVertical, Pencil, Check, X } from 'lucide-react'
+import { GripVertical, Pencil, Check, X, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Column {
@@ -19,13 +19,15 @@ interface ColumnReorderModalProps {
   onClose: () => void
   columns: Column[]
   onReorder: (newColumns: Column[]) => void
+  onDelete?: (columnId: string) => void
 }
 
 export function ColumnReorderModal({ 
   isOpen, 
   onClose, 
   columns, 
-  onReorder 
+  onReorder, 
+  onDelete 
 }: ColumnReorderModalProps) {
   const [orderedColumns, setOrderedColumns] = useState(columns)
   const [draggedNodeWidth, setDraggedNodeWidth] = useState<number | null>(null)
@@ -103,6 +105,13 @@ export function ColumnReorderModal({
     } catch (error) {
       console.error('Error updating columns:', error)
       setOrderedColumns(columns)
+    }
+  }
+
+  const handleDeleteColumn = (columnId: string) => {
+    if (confirm('Are you sure you want to delete this column? All cards in this column will be deleted.')) {
+      setOrderedColumns(current => current.filter(col => col.id !== columnId))
+      onDelete?.(columnId)
     }
   }
 
@@ -185,14 +194,22 @@ export function ColumnReorderModal({
                             <span className="font-medium">
                               {column.name}
                             </span>
-                            <button
-                              onClick={() => handleStartEditing(column)}
-                              className="p-1 text-gray-400 hover:text-gray-600 
-                                dark:text-gray-600 dark:hover:text-gray-400 
-                                hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleStartEditing(column)}
+                                className="p-1 text-gray-400 hover:text-gray-600 
+                                  dark:text-gray-600 dark:hover:text-gray-400 
+                                  hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteColumn(column.id)}
+                                className="p-1 text-red-500 hover:bg-red-500/10 rounded"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>

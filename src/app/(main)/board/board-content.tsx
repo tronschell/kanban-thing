@@ -6,7 +6,7 @@ import { KanbanBoard, CalendarView, ViewSwitcher, Backlog, TimelineView, UserOnb
 import { createClient } from '@/lib/supabase/client'
 import { Plus, RefreshCw, Lock } from 'lucide-react'
 import { DragDropContext } from 'react-beautiful-dnd'
-import type { Card } from '@/types'
+import type { Card, Column } from '@/types'
 import { useAnalytics } from '@/hooks/use-analytics';
 import { PasswordProtection } from '@/components/password-protection'
 
@@ -44,7 +44,7 @@ export default function BoardContent() {
   const [currentView, setCurrentView] = useState<'kanban' | 'calendar' | 'timeline'>('kanban')
   const [backlogCards, setBacklogCards] = useState<Card[]>([])
   const [boardCards, setBoardCards] = useState<Card[]>([])
-  const [columns, setColumns] = useState<Array<{ id: string; name: string }>>([])
+  const [columns, setColumns] = useState<Column[]>([])
   const [backlogColumnId, setBacklogColumnId] = useState<string | null>(null);
   const [boardNotFound, setBoardNotFound] = useState(false)
   const supabase = createClient()
@@ -179,123 +179,134 @@ export default function BoardContent() {
 
   const handleDragEnd = async (result: any) => {
     const { source, destination, draggableId } = result;
-    if (!destination || !backlogColumnId) return;
+    
+    // If dropped outside or same position
+    if (!destination) return;
 
-    // Find the card being moved
-    const movedCard = backlogCards.find(card => card.id === draggableId) || 
-                     boardCards.find(card => card.id === draggableId);
+    // Find the moved card from either backlog or board cards
+    const isFromBacklog = source.droppableId === "backlog";
+    const movedCard = isFromBacklog 
+      ? backlogCards.find(c => c.id === draggableId)
+      : boardCards.find(c => c.id === draggableId);
+
     if (!movedCard) return;
 
-    // STEP 1: Immediately update local state (optimistic update)
-    if (source.droppableId === 'backlog') {
-      if (destination.droppableId === 'backlog') {
-        // Reordering within backlog
-        const newBacklogCards = Array.from(backlogCards);
-        const [removed] = newBacklogCards.splice(source.index, 1);
-        newBacklogCards.splice(destination.index, 0, removed);
-        setBacklogCards(newBacklogCards);
+    try {
+      if (source.droppableId === destination.droppableId) {
+        // Reordering within the same container
+        const cards = isFromBacklog ? backlogCards : boardCards;
+        const setCards = isFromBacklog ? setBacklogCards : setBoardCards;
         
-        // STEP 2: Update database in background
-        try {
-          await Promise.all(
-            newBacklogCards.map((card, index) =>
-              supabase
-                .from('cards')
-                .update({ position: index * 1000 })
-                .eq('id', card.id)
-            )
-          );
-        } catch (error) {
-          console.error('Error updating positions:', error);
-          // Optionally revert the state on error
-          setBacklogCards(backlogCards);
-        }
-      } else {
+        // Create new array and reorder
+        const newCards = Array.from(cards);
+        const [removed] = newCards.splice(source.index, 1);
+        newCards.splice(destination.index, 0, removed);
+
+        // Update local state immediately
+        setCards(newCards);
+
+        // Update positions in database
+        await Promise.all(
+          newCards.map((card, index) =>
+            supabase
+              .from('cards')
+              .update({ position: index * 1000 })
+              .eq('id', card.id)
+          )
+        );
+      } else if (isFromBacklog && destination.droppableId !== "backlog") {
         // Moving from backlog to board
-        // STEP 1: Optimistic update
-        const updatedCard = {
-          ...movedCard,
-          column_id: destination.droppableId,
-          position: destination.index * 1000
-        };
-        
-        setBacklogCards(current => current.filter(card => card.id !== draggableId));
-        setBoardCards(current => {
-          const otherCards = current.filter(card => card.column_id !== destination.droppableId);
-          const columnCards = current.filter(card => card.column_id === destination.droppableId);
-          columnCards.splice(destination.index, 0, updatedCard);
-          return [...otherCards, ...columnCards];
-        });
-
-        // STEP 2: Update database
-        try {
-          await supabase
-            .from('cards')
-            .update({
-              column_id: destination.droppableId,
-              position: destination.index * 1000
-            })
-            .eq('id', draggableId);
-
-          await recordCardHistory(
-            supabase,
-            draggableId,
-            backlogColumnId,
-            destination.droppableId
-          );
-        } catch (error) {
-          console.error('Error moving card:', error);
-          // Revert on error
-          setBacklogCards(backlogCards);
-          setBoardCards(boardCards);
-        }
-      }
-    } else if (destination.droppableId === 'backlog') {
-      // Similar optimistic update pattern for board to backlog...
-    } else {
-      // Moving between board columns
-      // STEP 1: Optimistic update
-      setBoardCards(current => {
-        const cardsWithoutMoved = current.filter(card => card.id !== draggableId);
-        const updatedCard = {
-          ...movedCard,
-          column_id: destination.droppableId,
-          position: destination.index * 1000
-        };
-        
-        const destinationCards = cardsWithoutMoved.filter(
-          card => card.column_id === destination.droppableId
-        );
-        destinationCards.splice(destination.index, 0, updatedCard);
-        
-        const otherCards = cardsWithoutMoved.filter(
-          card => card.column_id !== destination.droppableId
-        );
-        
-        return [...otherCards, ...destinationCards];
-      });
-
-      // STEP 2: Update database
-      try {
-        await supabase
+        const { error } = await supabase
           .from('cards')
-          .update({
+          .update({ 
             column_id: destination.droppableId,
             position: destination.index * 1000
           })
           .eq('id', draggableId);
 
+        if (error) throw error;
+
+        // Update local states
+        setBacklogCards(current => current.filter(c => c.id !== draggableId));
+        setBoardCards(current => {
+          const updatedCard = {
+            ...movedCard,
+            column_id: destination.droppableId,
+            position: destination.index * 1000
+          };
+          return [...current, updatedCard];
+        });
+
+        // Record history
+        await recordCardHistory(
+          supabase,
+          draggableId,
+          backlogColumnId!,
+          destination.droppableId
+        );
+      } else if (!isFromBacklog && destination.droppableId === "backlog") {
+        // Moving from board to backlog
+        const { error } = await supabase
+          .from('cards')
+          .update({ 
+            column_id: backlogColumnId,
+            position: destination.index * 1000
+          })
+          .eq('id', draggableId);
+
+        if (error) throw error;
+
+        // Update local states
+        setBoardCards(current => current.filter(c => c.id !== draggableId));
+        setBacklogCards(current => {
+          const updatedCard = {
+            ...movedCard,
+            column_id: backlogColumnId!,
+            position: destination.index * 1000
+          };
+          return [...current, updatedCard];
+        });
+
+        // Record history
         await recordCardHistory(
           supabase,
           draggableId,
           source.droppableId,
-          destination.droppableId
+          backlogColumnId!
         );
-      } catch (error) {
-        console.error('Error moving card:', error);
-        // Revert on error
-        setBoardCards(boardCards);
+      } else if (!isFromBacklog && destination.droppableId !== "backlog") {
+        // Moving between board columns
+        const { error } = await supabase
+          .from('cards')
+          .update({ 
+            column_id: destination.droppableId,
+            position: destination.index * 1000
+          })
+          .eq('id', draggableId);
+
+        if (error) throw error;
+
+        setBoardCards(current => {
+          const updatedCard = {
+            ...movedCard,
+            column_id: destination.droppableId,
+            position: destination.index * 1000
+          };
+          return [...current.filter(c => c.id !== draggableId), updatedCard];
+        });
+
+        // Record history if column changed
+        if (source.droppableId !== destination.droppableId) {
+          await recordCardHistory(
+            supabase,
+            draggableId,
+            source.droppableId,
+            destination.droppableId
+          );
+        }
       }
+    } catch (error) {
+      console.error('Error updating card positions:', error);
     }
   };
 
@@ -508,6 +519,14 @@ export default function BoardContent() {
         setBoardCards={setBoardCards}
         setBacklogCards={setBacklogCards}
         backlogColumnId={backlogColumnId}
+        columns={[...columns, { 
+          id: backlogColumnId!, 
+          name: 'Backlog',
+          board_id: boardId!,
+          position: -1,
+          created_at: new Date().toISOString()
+        }].filter(Boolean)}
+        setColumns={setColumns}
       />
       <main className="flex-1">
         <div className="h-full overflow-y-auto">
@@ -532,6 +551,8 @@ export default function BoardContent() {
                             boardId={boardId} 
                             cards={boardCards}
                             setCards={setBoardCards}
+                            columns={columns}
+                            setColumns={setColumns}
                           />
                         </div>
                       </div>
@@ -542,6 +563,7 @@ export default function BoardContent() {
                           cards={backlogCards}
                           setCards={setBacklogCards}
                           activeId={null}
+                          backlogColumnId={backlogColumnId}
                         />
                       </div>
                     </div>

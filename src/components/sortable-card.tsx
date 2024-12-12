@@ -141,7 +141,7 @@ export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardPr
               border border-gray-200/50 dark:border-gray-700/50
               shadow-sm hover:shadow-md
               ${snapshot.isDragging ? 'shadow-xl ring-2 ring-blue-500/20' : ''}
-              transition-all duration-200
+              transition-[box-shadow] duration-200
               cursor-grab active:cursor-grabbing
             `}
           >

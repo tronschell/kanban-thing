@@ -193,7 +193,9 @@ export default function KanbanBoard({
   activeId,
   activeType,
   setActiveId,
-  setActiveType
+  setActiveType,
+  columns,
+  setColumns
 }: { 
   boardId: string
   cards: Card[]
@@ -202,12 +204,13 @@ export default function KanbanBoard({
   activeType: 'column' | 'card' | null
   setActiveId: (id: string | null) => void
   setActiveType: (type: 'column' | 'card' | null) => void
+  columns: Column[]
+  setColumns: React.Dispatch<React.SetStateAction<Column[]>>
 }) {
   const [boardData, setBoardData] = useState<Board | null>(null)
   const [isEditingName, setIsEditingName] = useState(false)
   const [newBoardName, setNewBoardName] = useState('')
   const boardNameInputRef = useRef<HTMLInputElement>(null)
-  const [columns, setColumns] = useState<Column[]>([])
   const [loading, setLoading] = useState(true)
   const [isAddingColumn, setIsAddingColumn] = useState(false)
   const [addingCardToColumn, setAddingCardToColumn] = useState<string | null>(null)
@@ -265,41 +268,6 @@ export default function KanbanBoard({
     }
 
     fetchBoardData()
-  }, [boardId])
-
-  useEffect(() => {
-    // Set up real-time subscription for card changes
-    const channel = supabase
-      .channel('card_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'cards',
-          filter: `column_id=neq.null`
-        },
-        (payload) => {
-          if (payload.eventType === 'DELETE') {
-            setCards(currentCards => 
-              currentCards.filter(card => card.id !== payload.old.id)
-            )
-          } else if (payload.eventType === 'INSERT') {
-            setCards(currentCards => [...currentCards, payload.new as Card])
-          } else if (payload.eventType === 'UPDATE') {
-            setCards(currentCards =>
-              currentCards.map(card =>
-                card.id === payload.new.id ? { ...card, ...payload.new } : card
-              )
-            )
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
   }, [boardId])
 
   useEffect(() => {
@@ -364,28 +332,27 @@ export default function KanbanBoard({
     }
   };
 
-  const handleDragEnd = (result: any) => {
-    // Clean up preview
-    setDraggedCard(null);
-
+  const handleDragEnd = async (result: any) => {
     const { source, destination, draggableId } = result;
 
-    // Dropped outside or same position
+    // If dropped outside or same position
     if (!destination) return;
-    
+
     // Find the moved card
     const card = cards.find(c => c.id === draggableId);
     if (!card) return;
+
+    // When dropping in a collapsed column, always append to the end
+    const targetColumn = columns.find(col => col.id === destination.droppableId);
+    if (!targetColumn) return;
 
     // Create new array and remove card from old position
     const newCards = [...cards];
     const cardIndex = newCards.findIndex(c => c.id === draggableId);
     newCards.splice(cardIndex, 1);
 
-    // Get cards in destination column
-    const columnCards = newCards.filter(c => c.column_id === destination.droppableId);
-    
-    // Calculate new position
+    // Get cards in destination column and calculate new position
+    const destinationCards = newCards.filter(c => c.column_id === destination.droppableId);
     const newPosition = destination.index * 1000;
     
     // Create updated card
@@ -395,63 +362,61 @@ export default function KanbanBoard({
       position: newPosition
     };
 
-    // Insert card at new position
-    if (destination.droppableId === source.droppableId) {
-      // Same column - insert at exact index
-      const sameColumnCards = newCards.filter(c => c.column_id === source.droppableId);
-      sameColumnCards.splice(destination.index, 0, updatedCard);
-      
-      // Update all positions in the column
-      const updatedColumnCards = sameColumnCards.map((c, index) => ({
-        ...c,
-        position: index * 1000
-      }));
+    try {
+      if (destination.droppableId === source.droppableId) {
+        // Same column - insert at exact index
+        const sameColumnCards = newCards.filter(c => c.column_id === source.droppableId);
+        sameColumnCards.splice(destination.index, 0, updatedCard);
+        
+        // Update all positions in the column
+        const updatedColumnCards = sameColumnCards.map((c, index) => ({
+          ...c,
+          position: index * 1000
+        }));
 
-      // Replace old column cards with updated ones
-      const finalCards = newCards.filter(c => c.column_id !== source.droppableId)
-        .concat(updatedColumnCards);
+        // Replace old column cards with updated ones
+        const finalCards = newCards.filter(c => c.column_id !== source.droppableId)
+          .concat(updatedColumnCards);
 
-      // Update UI immediately
-      setCards(finalCards);
+        // Update UI immediately
+        setCards(finalCards);
 
-      // Update database
-      try {
+        // Update database
         const updates = updatedColumnCards.map(c => ({
           id: c.id,
           column_id: c.column_id,
           position: c.position
         }));
 
-        supabase
+        const { error } = await supabase
           .from('cards')
           .upsert(updates, { onConflict: 'id' });
-      } catch (error) {
-        console.error('Error updating card positions:', error);
-      }
-    } else {
-      // Different column - handle cross-column movement
-      newCards.splice(destination.index, 0, updatedCard);
-      
-      // Update UI immediately
-      setCards(newCards);
 
-      // Update database
-      try {
-        supabase
+        if (error) throw error;
+      } else {
+        // Different column - handle cross-column movement
+        newCards.splice(destination.index, 0, updatedCard);
+        
+        // Update UI immediately
+        setCards(newCards);
+
+        // Update database
+        const { error } = await supabase
           .from('cards')
           .update({ 
             column_id: destination.droppableId,
             position: newPosition
           })
-          .eq('id', card.id)
-          .then(() => {
-            // Update positions of all cards in destination column
-            const columnCards = newCards.filter(c => c.column_id === destination.droppableId);
-            updateCardPositions(destination.droppableId, columnCards);
-          });
-      } catch (error) {
-        console.error('Error updating card positions:', error);
+          .eq('id', card.id);
+
+        if (error) throw error;
+
+        // Update positions of all cards in destination column
+        const columnCards = newCards.filter(c => c.column_id === destination.droppableId);
+        await updateCardPositions(destination.droppableId, columnCards);
       }
+    } catch (error) {
+      console.error('Error updating card positions:', error);
     }
   };
 
@@ -480,19 +445,52 @@ export default function KanbanBoard({
   }
 
   const handleAddColumn = async (name: string) => {
+    // Generate a temporary ID for optimistic update
+    const tempId = `temp-${Date.now()}`
     const newPosition = columns.length
-    const { data: column } = await supabase
-      .from('columns')
-      .insert({
-        board_id: boardId,
-        name,
-        position: newPosition,
-      })
-      .select()
-      .single()
 
-    if (column) {
-      setColumns([...columns, column])
+    // Create new column object
+    const newColumn: Column = {
+      id: tempId,
+      board_id: boardId,
+      name,
+      position: newPosition,
+      created_at: new Date().toISOString()
+    }
+
+    // Update local state immediately (optimistic update)
+    setColumns(prevColumns => [...prevColumns, newColumn])
+
+    try {
+      // Then update the database
+      const { data: persistedColumn, error } = await supabase
+        .from('columns')
+        .insert({
+          board_id: boardId,
+          name,
+          position: newPosition,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      if (persistedColumn) {
+        // Update the local state again with the real ID and data from the database
+        setColumns(prevColumns => 
+          prevColumns.map(col => 
+            col.id === tempId ? persistedColumn : col
+          )
+        )
+      }
+    } catch (error) {
+      console.error('Error creating column:', error)
+      // Rollback optimistic update on error
+      setColumns(prevColumns => 
+        prevColumns.filter(col => col.id !== tempId)
+      )
+      // Optionally show an error message to the user
+      alert('Failed to create column. Please try again.')
     }
   }
 
@@ -598,6 +596,29 @@ export default function KanbanBoard({
     }
   }
 
+  const handleDeleteColumn = async (columnId: string) => {
+    // Optimistic update - remove from UI immediately
+    setColumns(prevColumns => prevColumns.filter(col => col.id !== columnId))
+    setCards(prevCards => prevCards.filter(card => card.column_id !== columnId))
+
+    try {
+      // Background API call
+      const response = await fetch(`/api/columns/${columnId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete column')
+      }
+    } catch (error) {
+      console.error('Error deleting column:', error)
+      // Rollback on error
+      setColumns(prevColumns => [...prevColumns])
+      setCards(prevCards => [...prevCards])
+      alert('Failed to delete column. Please try again.')
+    }
+  }
+
   if (loading) {
     return <div className="p-8 text-center">Loading board...</div>
   }
@@ -699,6 +720,7 @@ export default function KanbanBoard({
         onClose={() => setIsReorderingColumns(false)}
         columns={columns}
         onReorder={handleReorderColumns}
+        onDelete={handleDeleteColumn}
       />
     </div>
   )

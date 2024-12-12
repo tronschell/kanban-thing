@@ -12,7 +12,7 @@ import { useBoardExpiration } from '@/hooks/use-board-expiration'
 import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui'
 import { TerminalInterface } from '@/components/terminal-interface'
-import { Card } from '@/types'
+import { Card, Column } from '@/types'
 import { CreateModal } from '@/components/create-modal'
 import { 
   DropdownMenu,
@@ -27,6 +27,8 @@ interface NavbarProps {
   setBoardCards?: React.Dispatch<React.SetStateAction<Card[]>>
   setBacklogCards?: React.Dispatch<React.SetStateAction<Card[]>>
   backlogColumnId?: string | null
+  columns: Column[]
+  setColumns: React.Dispatch<React.SetStateAction<Column[]>>
 }
 
 interface NavItem {
@@ -70,12 +72,18 @@ const getRandomColor = () => {
   return DEFAULT_COLORS[Math.floor(Math.random() * DEFAULT_COLORS.length)]
 }
 
-export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlogColumnId }: NavbarProps) {
+export default function Navbar({ 
+  boardId, 
+  setBoardCards, 
+  setBacklogCards, 
+  backlogColumnId,
+  columns,
+  setColumns 
+}: NavbarProps) {
   const [copied, setCopied] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isTerminalOpen, setIsTerminalOpen] = useState(false)
-  const [boardColumns, setBoardColumns] = useState<Array<{ id: string; name: string }>>([])
   const router = useRouter()
   const url = boardId ? `${window.location.origin}/board?id=${boardId}` : ''
   const displayUrl = url ? url.replace(/^https?:\/\//, '').slice(0, 24) + '...' : ''
@@ -115,25 +123,6 @@ export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlo
     return () => clearInterval(timer)
   }, [expiresAt])
 
-  // Preload columns when the component mounts or boardId changes
-  useEffect(() => {
-    const loadColumns = async () => {
-      if (!boardId) return
-
-      const { data: columns, error } = await supabase
-        .from('columns')
-        .select('id, name')
-        .eq('board_id', boardId)
-        .order('position')
-
-      if (!error && columns) {
-        setBoardColumns(columns)
-      }
-    }
-
-    loadColumns()
-  }, [boardId])
-
   // Load all cards when component mounts
   useEffect(() => {
     const loadCards = async () => {
@@ -168,7 +157,7 @@ export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlo
 
   // Helper function to find column by name (case-insensitive)
   const findColumnByName = (name: string) => {
-    return boardColumns.find(col => 
+    return columns.find(col => 
       col.name.toLowerCase() === name.toLowerCase()
     )
   }
@@ -250,7 +239,7 @@ export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlo
           // Find column using our helper function
           const column = findColumnByName(columnName)
           if (!column) {
-            const availableColumns = boardColumns
+            const availableColumns = columns
               .map(col => `"${col.name}"`)
               .join(', ')
             return {
@@ -329,7 +318,7 @@ export default function Navbar({ boardId, setBoardCards, setBacklogCards, backlo
           // Find column using our helper function
           const column = findColumnByName(columnName)
           if (!column) {
-            const availableColumns = boardColumns
+            const availableColumns = columns
               .map(col => `"${col.name}"`)
               .join(', ')
             return {
@@ -571,24 +560,50 @@ Note: If no column is specified in create command, card will be created in Backl
   const handleCreateColumn = async (name: string) => {
     if (!boardId) return
 
+    // Generate temporary ID for optimistic update
+    const tempId = `temp-${Date.now()}`
+    const newPosition = columns.length
+
+    // Create new column object
+    const newColumn: Column = {
+      id: tempId,
+      board_id: boardId,
+      name,
+      position: newPosition,
+      created_at: new Date().toISOString()
+    }
+
+    // Update local state immediately (optimistic update)
+    setColumns(prevColumns => [...prevColumns, newColumn])
+
     try {
-      const { data: newColumn, error } = await supabase
+      const { data: persistedColumn, error } = await supabase
         .from('columns')
         .insert({
           name,
           board_id: boardId,
-          position: boardColumns.length
+          position: newPosition
         })
         .select('*')
         .single()
 
       if (error) throw error
 
-      if (newColumn) {
-        setBoardColumns(prev => [...prev, newColumn])
+      if (persistedColumn) {
+        // Update the local state with the real data
+        setColumns(prevColumns => 
+          prevColumns.map(col => 
+            col.id === tempId ? persistedColumn : col
+          )
+        )
       }
     } catch (error) {
       console.error('Error creating column:', error)
+      // Rollback optimistic update on error
+      setColumns(prevColumns => 
+        prevColumns.filter(col => col.id !== tempId)
+      )
+      alert('Failed to create column. Please try again.')
     }
   }
 
@@ -903,7 +918,18 @@ Note: If no column is specified in create command, card will be created in Backl
       <CreateModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        columns={boardColumns}
+        columns={[
+          // Add backlog column first if it exists
+          ...(backlogColumnId ? [{
+            id: backlogColumnId,
+            name: 'Backlog',
+            board_id: boardId!,
+            position: -1,
+            created_at: new Date().toISOString()
+          }] : []),
+          // Then add all other columns
+          ...columns
+        ]}
         onCreateCard={handleCreateCard}
         onCreateColumn={handleCreateColumn}
       />
@@ -914,7 +940,7 @@ Note: If no column is specified in create command, card will be created in Backl
         onClose={() => setIsTerminalOpen(false)}
         onCommand={handleTerminalCommand}
         availableCards={allCards}
-        availableColumns={boardColumns}
+        availableColumns={columns}
       />
 
       {/* Delete Confirmation Modal */}
