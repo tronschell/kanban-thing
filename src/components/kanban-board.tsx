@@ -333,90 +333,70 @@ export default function KanbanBoard({
   };
 
   const handleDragEnd = async (result: any) => {
-    const { source, destination, draggableId } = result;
+    if (!result.destination) return;
 
-    // If dropped outside or same position
-    if (!destination) return;
+    const { source, destination } = result;
+    const sourceColumnId = source.droppableId;
+    const destColumnId = destination.droppableId;
 
-    // Find the moved card
-    const card = cards.find(c => c.id === draggableId);
-    if (!card) return;
-
-    // When dropping in a collapsed column, always append to the end
-    const targetColumn = columns.find(col => col.id === destination.droppableId);
-    if (!targetColumn) return;
-
-    // Create new array and remove card from old position
-    const newCards = [...cards];
-    const cardIndex = newCards.findIndex(c => c.id === draggableId);
-    newCards.splice(cardIndex, 1);
-
-    // Get cards in destination column and calculate new position
-    const destinationCards = newCards.filter(c => c.column_id === destination.droppableId);
-    const newPosition = destination.index * 1000;
+    // Create a new array of cards
+    const newCards = Array.from(cards);
     
-    // Create updated card
-    const updatedCard = {
-      ...card,
-      column_id: destination.droppableId,
-      position: newPosition
-    };
+    // Find all cards in the source column
+    const sourceColumnCards = newCards.filter(card => card.column_id === sourceColumnId);
+    // Find all cards in the destination column
+    const destColumnCards = sourceColumnId === destColumnId 
+      ? sourceColumnCards 
+      : newCards.filter(card => card.column_id === destColumnId);
 
-    try {
-      if (destination.droppableId === source.droppableId) {
-        // Same column - insert at exact index
-        const sameColumnCards = newCards.filter(c => c.column_id === source.droppableId);
-        sameColumnCards.splice(destination.index, 0, updatedCard);
-        
-        // Update all positions in the column
-        const updatedColumnCards = sameColumnCards.map((c, index) => ({
-          ...c,
-          position: index * 1000
-        }));
+    // Remove the dragged card from its source position
+    const [movedCard] = sourceColumnCards.splice(source.index, 1);
+    
+    // If moving to a different column, update the column_id
+    if (sourceColumnId !== destColumnId) {
+      movedCard.column_id = destColumnId;
+    }
 
-        // Replace old column cards with updated ones
-        const finalCards = newCards.filter(c => c.column_id !== source.droppableId)
-          .concat(updatedColumnCards);
+    // Insert the card in its new position
+    destColumnCards.splice(destination.index, 0, movedCard);
 
-        // Update UI immediately
-        setCards(finalCards);
-
-        // Update database
-        const updates = updatedColumnCards.map(c => ({
-          id: c.id,
-          column_id: c.column_id,
-          position: c.position
-        }));
-
-        const { error } = await supabase
-          .from('cards')
-          .upsert(updates, { onConflict: 'id' });
-
-        if (error) throw error;
-      } else {
-        // Different column - handle cross-column movement
-        newCards.splice(destination.index, 0, updatedCard);
-        
-        // Update UI immediately
-        setCards(newCards);
-
-        // Update database
-        const { error } = await supabase
-          .from('cards')
-          .update({ 
-            column_id: destination.droppableId,
-            position: newPosition
-          })
-          .eq('id', card.id);
-
-        if (error) throw error;
-
-        // Update positions of all cards in destination column
-        const columnCards = newCards.filter(c => c.column_id === destination.droppableId);
-        await updateCardPositions(destination.droppableId, columnCards);
+    // Update positions for all affected cards
+    const updatedCards = newCards.map(card => {
+      if (card.column_id === sourceColumnId) {
+        const index = sourceColumnCards.findIndex(c => c.id === card.id);
+        return index !== -1 ? { ...card, position: index } : card;
       }
+      if (card.column_id === destColumnId) {
+        const index = destColumnCards.findIndex(c => c.id === card.id);
+        return index !== -1 ? { ...card, position: index } : card;
+      }
+      return card;
+    });
+
+    // Update local state
+    setCards(updatedCards);
+
+    // Update database
+    try {
+      const updates = updatedCards
+        .filter(card => 
+          card.column_id === sourceColumnId || 
+          card.column_id === destColumnId
+        )
+        .map(card => ({
+          id: card.id,
+          position: card.position,
+          column_id: card.column_id
+        }));
+
+      const { error } = await supabase
+        .from('cards')
+        .upsert(updates, { onConflict: 'id' });
+
+      if (error) throw error;
     } catch (error) {
       console.error('Error updating card positions:', error);
+      // Optionally revert the state if the update fails
     }
   };
 
