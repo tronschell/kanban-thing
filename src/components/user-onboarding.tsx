@@ -21,10 +21,14 @@ export default function UserOnboarding() {
 
     setIsCreating(true)
     try {
-      // Create board and wait for response
+      // Start a more atomic operation by preparing all our data
+      const boardData = {
+        name: boardName.trim()
+      }
+
       const { data: board, error: boardError } = await supabase
         .from('boards')
-        .insert({ name: boardName.trim() })
+        .insert(boardData)
         .select('id')
         .single()
 
@@ -38,31 +42,47 @@ export default function UserOnboarding() {
         board_name: boardName.trim(),
       })
 
-      // Create default columns and wait for response
+      // Prepare the columns data
+      const columnsData = [
+        { board_id: board.id, name: 'To Do', position: 0 },
+        { board_id: board.id, name: 'In Progress', position: 1 },
+        { board_id: board.id, name: 'Done', position: 2 }
+      ]
+
+      // Insert columns
       const { error: columnsError } = await supabase
         .from('columns')
-        .insert([
-          { board_id: board.id, name: 'To Do', position: 0 },
-          { board_id: board.id, name: 'In Progress', position: 1 },
-          { board_id: board.id, name: 'Done', position: 2 }
-        ])
+        .insert(columnsData)
 
       if (columnsError) {
+        // If columns creation fails, clean up the board to prevent orphaned data
+        await supabase.from('boards').delete().eq('id', board.id)
         throw columnsError
       }
 
-      // Verify board exists before proceeding
-      const { data: verifyBoard, error: verifyError } = await supabase
+      // Final verification - get both board AND columns
+      const { data: verifyData, error: verifyError } = await supabase
         .from('boards')
-        .select('id')
+        .select(`
+          id,
+          columns (
+            id
+          )
+        `)
         .eq('id', board.id)
         .single()
 
-      if (verifyError || !verifyBoard) {
-        throw new Error('Board verification failed')
+      if (verifyError || !verifyData || !verifyData.columns?.length) {
+        throw new Error('Board verification failed - board or columns missing')
       }
 
-      // Set localStorage only after successful creation
+      // Track board creation only after successful verification
+      trackEvent('create_board', {
+        board_id: board.id,
+        board_name: boardName.trim(),
+      })
+
+      // Set localStorage only after complete verification
       localStorage.setItem('kanban_user_id', board.id)
       
       // Trigger exit animation
