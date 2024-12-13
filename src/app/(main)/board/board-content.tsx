@@ -182,11 +182,53 @@ export default function BoardContent() {
     const { source, destination, draggableId } = result;
     
     if (result.type === 'card') {
-      const movedCard = boardCards.find(card => card.id === draggableId);
+      // Determine if we're working with backlog or board cards
+      const isBacklogSource = source.droppableId === "backlog";
+      const isBacklogDestination = destination.droppableId === "backlog";
+      const currentCards = isBacklogSource ? backlogCards : boardCards;
+      const setCurrentCards = isBacklogSource ? setBacklogCards : setBoardCards;
+      
+      const movedCard = currentCards.find(card => card.id === draggableId);
       if (!movedCard) return;
 
       try {
-        // 1. Calculate the new card arrangements first
+        // Handle backlog reordering
+        if (isBacklogSource && isBacklogDestination) {
+          // 1. Create new array of backlog cards
+          const newBacklogCards = Array.from(backlogCards);
+          
+          // 2. Remove card from old position and insert at new position
+          const [removed] = newBacklogCards.splice(source.index, 1);
+          newBacklogCards.splice(destination.index, 0, removed);
+          
+          // 3. Update positions sequentially
+          const updates = newBacklogCards.map((card, index) => ({
+            id: card.id,
+            position: index * 1000,
+            column_id: backlogColumnId,
+            title: card.title,
+            created_at: card.created_at
+          }));
+
+          // 4. Update UI optimistically
+          setBacklogCards(newBacklogCards);
+
+          // 5. Update database
+          const { error } = await supabase
+            .from('cards')
+            .upsert(updates, { 
+              onConflict: 'id'
+            });
+
+          if (error) {
+            console.error('Supabase error:', error);
+            throw error;
+          }
+          
+          return; // Exit early as we've handled the backlog case
+        }
+
+        // Original board cards logic...
         const sourceCards = boardCards.filter(card => card.column_id === source.droppableId);
         const destCards = source.droppableId === destination.droppableId 
           ? sourceCards 
