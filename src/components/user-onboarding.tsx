@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { GradientBackground } from '@/components/ui/gradient-background'
@@ -9,6 +9,7 @@ import { motion } from 'framer-motion'
 
 export default function UserOnboarding() {
   const [boardName, setBoardName] = useState('')
+  const [password, setPassword] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
   const router = useRouter()
@@ -17,10 +18,19 @@ export default function UserOnboarding() {
 
   const handleCreateBoard = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!boardName.trim() || boardName.trim().length < 3 || isCreating) return
+    if (!boardName.trim() || boardName.trim().length < 3 || !password || isCreating) return
 
     setIsCreating(true)
     try {
+      // First, set the board password in the session
+      const { error: sessionError } = await supabase.rpc('set_session_board_password', {
+        password_param: password
+      })
+
+      if (sessionError) {
+        throw sessionError
+      }
+
       // Start a more atomic operation by preparing all our data
       const boardData = {
         name: boardName.trim()
@@ -36,12 +46,6 @@ export default function UserOnboarding() {
         throw new Error(boardError?.message || 'Failed to create board')
       }
 
-      // Track board creation
-      trackEvent('create_board', {
-        board_id: board.id,
-        board_name: boardName.trim(),
-      })
-
       // Prepare the columns data
       const columnsData = [
         { board_id: board.id, name: 'To Do', position: 0 },
@@ -55,7 +59,7 @@ export default function UserOnboarding() {
         .insert(columnsData)
 
       if (columnsError) {
-        // If columns creation fails, clean up the board to prevent orphaned data
+        // If columns creation fails, clean up the board
         await supabase.from('boards').delete().eq('id', board.id)
         throw columnsError
       }
@@ -76,21 +80,27 @@ export default function UserOnboarding() {
         throw new Error('Board verification failed - board or columns missing')
       }
 
-      // Track board creation only after successful verification
+      // Track board creation
       trackEvent('create_board', {
         board_id: board.id,
         board_name: boardName.trim(),
       })
 
-      // Set localStorage only after complete verification
+      // Store board password in localStorage for immediate use
+      localStorage.setItem(`board_${board.id}_password`, password)
+      console.log('Stored password for board:', {
+        boardId: board.id,
+        storedPassword: localStorage.getItem(`board_${board.id}_password`)
+      })
       localStorage.setItem('kanban_user_id', board.id)
       
-      // Trigger exit animation
+      // Set the password in the session again before navigating
+      await supabase.rpc('set_session_board_password', {
+        password_param: password
+      })
+      
       setIsExiting(true)
-      
-      // Wait for animation to complete before navigating
       await new Promise(resolve => setTimeout(resolve, 300))
-      
       router.replace(`/board?id=${board.id}`)
     } catch (error) {
       console.error('Error creating board:', error)
@@ -108,13 +118,11 @@ export default function UserOnboarding() {
       }}
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      {/* Background layer */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="absolute inset-0">
         <GradientBackground />
       </div>
       
-      {/* Content layer - higher z-index */}
       <div className="relative z-10 bg-white/30 dark:bg-gray-900/30 backdrop-blur-md p-8 rounded-xl max-w-md w-full shadow-xl border border-white/20">
         <h2 className="text-2xl font-bold mb-6 text-white">
           Create Your Kanban Board
@@ -139,6 +147,24 @@ export default function UserOnboarding() {
               autoFocus
             />
           </div>
+          <div>
+            <label 
+              htmlFor="password" 
+              className="block text-sm font-medium text-gray-100 mb-2"
+            >
+              Board Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-2 border rounded-lg bg-white/10 border-white/20 text-white placeholder-gray-400"
+              placeholder="Enter board password"
+              required
+              disabled={isCreating}
+            />
+          </div>
           <button
             type="submit"
             disabled={isCreating}
@@ -150,4 +176,4 @@ export default function UserOnboarding() {
       </div>
     </motion.div>
   )
-} 
+}
