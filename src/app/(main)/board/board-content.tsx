@@ -228,6 +228,149 @@ export default function BoardContent() {
           return; // Exit early as we've handled the backlog case
         }
 
+        // Handle moving cards from backlog to board
+        if (isBacklogSource && !isBacklogDestination) {
+          // 1. Remove card from backlog
+          const newBacklogCards = backlogCards.filter(card => card.id !== draggableId);
+
+          // 2. Add card to destination column
+          const updatedMovedCard = {
+            ...movedCard,
+            column_id: destination.droppableId,
+            position: destination.index * 1000
+          };
+          const destCards = boardCards.filter(card => card.column_id === destination.droppableId);
+          destCards.splice(destination.index, 0, updatedMovedCard);
+
+          // 3. Update positions sequentially
+          destCards.forEach((card, index) => {
+            card.position = index * 1000;
+          });
+
+          // 4. Prepare database updates with the calculated positions
+          const updates = [
+            ...destCards.map(card => ({
+              id: card.id,
+              position: card.position,
+              column_id: destination.droppableId,
+              title: card.title,
+              created_at: card.created_at
+            }))
+          ];
+
+          // 5. Update UI optimistically
+          setBacklogCards(newBacklogCards);
+          setBoardCards(currentCards => {
+            const unchangedCards = currentCards.filter(card => 
+              card.column_id !== destination.droppableId
+            );
+            
+            return [
+              ...unchangedCards,
+              ...destCards
+            ];
+          });
+
+          // 6. Update database
+          const { error } = await supabase
+            .from('cards')
+            .upsert(updates, { 
+              onConflict: 'id'
+            });
+
+          if (error) {
+            console.error('Supabase error:', error);
+            throw error;
+          }
+
+          // 7. Record history
+          await recordCardHistory(
+            supabase,
+            draggableId,
+            backlogColumnId!,
+            destination.droppableId
+          );
+
+          return; // Exit early as we've handled the backlog to board case
+        }
+
+        // Handle moving cards from board to backlog
+        if (!isBacklogSource && isBacklogDestination) {
+          // 1. Remove card from source column
+          const sourceCards = boardCards.filter(card => card.column_id === source.droppableId);
+          sourceCards.splice(source.index, 1);
+
+          // 2. Add card to backlog
+          const updatedMovedCard = {
+            ...movedCard,
+            column_id: backlogColumnId,
+            position: destination.index * 1000
+          };
+          const newBacklogCards = Array.from(backlogCards);
+          newBacklogCards.splice(destination.index, 0, updatedMovedCard);
+
+          // 3. Update positions sequentially
+          sourceCards.forEach((card, index) => {
+            card.position = index * 1000;
+          });
+          newBacklogCards.forEach((card, index) => {
+            card.position = index * 1000;
+          });
+
+          // 4. Prepare database updates with the calculated positions
+          const updates = [
+            ...sourceCards.map(card => ({
+              id: card.id,
+              position: card.position,
+              column_id: source.droppableId,
+              title: card.title,
+              created_at: card.created_at
+            })),
+            ...newBacklogCards.map(card => ({
+              id: card.id,
+              position: card.position,
+              column_id: backlogColumnId,
+              title: card.title,
+              created_at: card.created_at
+            }))
+          ];
+
+          // 5. Update UI optimistically
+          setBoardCards(currentCards => {
+            const unchangedCards = currentCards.filter(card => 
+              card.column_id !== source.droppableId
+            );
+            
+            return [
+              ...unchangedCards,
+              ...sourceCards
+            ];
+          });
+          setBacklogCards(newBacklogCards);
+
+          // 6. Update database
+          const { error } = await supabase
+            .from('cards')
+            .upsert(updates, { 
+              onConflict: 'id'
+            });
+
+          if (error) {
+            console.error('Supabase error:', error);
+            throw error;
+          }
+
+          // 7. Record history
+          await recordCardHistory(
+            supabase,
+            draggableId,
+            source.droppableId,
+            backlogColumnId!
+          );
+
+          return; // Exit early as we've handled the board to backlog case
+        }
+
         // Original board cards logic...
         const sourceCards = boardCards.filter(card => card.column_id === source.droppableId);
         const destCards = source.droppableId === destination.droppableId 
