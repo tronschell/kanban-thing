@@ -32,6 +32,7 @@
     "framer-motion": "^11.13.1",
     "lucide-react": "^0.465.0",
     "next": "15.0.3",
+    "password-validator": "^5.3.0",
     "react": "18.3.1",
     "react-beautiful-dnd": "^13.1.1",
     "react-big-calendar": "^1.16.3",

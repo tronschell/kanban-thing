@@ -6,19 +6,50 @@ import { createClient } from '@/lib/supabase/client'
 import { GradientBackground } from '@/components/ui/gradient-background'
 import { useAnalytics } from '@/hooks/use-analytics'
 import { motion } from 'framer-motion'
+import PasswordValidator from 'password-validator'
+
+// Create a schema for password validation
+const passwordSchema = new PasswordValidator()
+  .min(6)                                    // Minimum length 6
+  .max(100)                                  // Maximum length 100
+  .not().spaces()                           // Should not have spaces
+  .is().not().oneOf(['password', 'Password123', 'admin', '123456', 'qwerty']); // Blacklist common passwords
 
 export default function UserOnboarding() {
   const [boardName, setBoardName] = useState('')
   const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
   const router = useRouter()
   const supabase = createClient()
   const { trackEvent } = useAnalytics()
 
+  const validatePassword = (pass: string) => {
+    const validationResult = passwordSchema.validate(pass, { list: true }) as string[];
+    if (validationResult.length === 0) {
+      setPasswordError('');
+      return true;
+    }
+
+    const errorMessages: { [key: string]: string } = {
+      min: 'Password must be at least 8 characters long',
+      max: 'Password is too long',
+      spaces: 'Password should not contain spaces',
+      oneOf: 'This password is too common'
+    };
+
+    setPasswordError(errorMessages[validationResult[0]] || 'Invalid password');
+    return false;
+  };
+
   const handleCreateBoard = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!boardName.trim() || boardName.trim().length < 3 || !password || isCreating) return
+    
+    if (!validatePassword(password)) {
+      return;
+    }
 
     setIsCreating(true)
     try {
@@ -172,12 +203,23 @@ export default function UserOnboarding() {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                validatePassword(e.target.value);
+              }}
               className="w-full p-2 border rounded-lg bg-white/10 border-white/20 text-white placeholder-gray-400"
-              placeholder="Enter board password"
+              placeholder="Enter a strong password"
               required
               disabled={isCreating}
             />
+            {passwordError && (
+              <p className="mt-2 text-sm text-red-400">
+                {passwordError}
+              </p>
+            )}
+            <p className="mt-2 text-sm text-gray-300">
+              Password must contain at least 6 characters
+            </p>
           </div>
           <button
             type="submit"
