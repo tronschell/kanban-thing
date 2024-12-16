@@ -22,23 +22,12 @@ export default function UserOnboarding() {
 
     setIsCreating(true)
     try {
-      // First, set the board password in the session
-      const { error: sessionError } = await supabase.rpc('set_session_board_password', {
-        password_param: password
-      })
-
-      if (sessionError) {
-        throw sessionError
-      }
-
-      // Start a more atomic operation by preparing all our data
-      const boardData = {
-        name: boardName.trim()
-      }
-
+      // Create the board first
       const { data: board, error: boardError } = await supabase
         .from('boards')
-        .insert(boardData)
+        .insert({
+          name: boardName.trim()
+        })
         .select('id')
         .single()
 
@@ -46,6 +35,35 @@ export default function UserOnboarding() {
         throw new Error(boardError?.message || 'Failed to create board')
       }
 
+      console.log('Board created:', board)
+
+      // Set the board password using the secure RPC function
+      const { data: passwordSet, error: passwordError } = await supabase.rpc('set_board_password', {
+        board_id_param: board.id,
+        new_password: password
+      })
+
+      console.log('Password setting result:', { passwordSet, passwordError })
+
+      if (passwordError) {
+        console.error('Password setting error:', passwordError)
+        // If setting password fails, clean up the board
+        await supabase.from('boards').delete().eq('id', board.id)
+        throw passwordError
+      }
+
+      // Verify the hash was set
+      const { data: verifyBoard } = await supabase
+        .from('boards')
+        .select('password_hash')
+        .eq('id', board.id)
+        .single()
+
+      console.log('Board after password set:', verifyBoard)
+
+      // Store board password in localStorage for immediate use
+      localStorage.setItem(`board_${board.id}_password`, password)
+      
       // Prepare the columns data
       const columnsData = [
         { board_id: board.id, name: 'To Do', position: 0 },
@@ -88,10 +106,6 @@ export default function UserOnboarding() {
 
       // Store board password in localStorage for immediate use
       localStorage.setItem(`board_${board.id}_password`, password)
-      console.log('Stored password for board:', {
-        boardId: board.id,
-        storedPassword: localStorage.getItem(`board_${board.id}_password`)
-      })
       localStorage.setItem('kanban_user_id', board.id)
       
       // Set the password in the session again before navigating

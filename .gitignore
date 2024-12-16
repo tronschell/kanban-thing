@@ -42,3 +42,4 @@ next-env.d.ts
 *.sql
 
 metadata.json
+src/lib/supabase/add_board_password.sql

@@ -9,6 +9,25 @@ import { DragDropContext } from 'react-beautiful-dnd'
 import type { Card, Column } from '@/types'
 import { useAnalytics } from '@/hooks/use-analytics';
 import { PasswordProtection } from '@/components/password-protection'
+import { useBoardAuth } from '@/hooks/use-board-auth'
+
+const ensureBoardPassword = async (supabase: any, boardId: string) => {
+  // Get stored password from localStorage
+  const storedPassword = localStorage.getItem(`board_password_${boardId}`)
+  if (!storedPassword) return false
+
+  // Set the password in Supabase context
+  try {
+    await supabase.rpc('verify_and_set_board_password', {
+      board_id_param: boardId,
+      password_attempt: storedPassword
+    })
+    return true
+  } catch (error) {
+    console.error('Error setting board password:', error)
+    return false
+  }
+}
 
 const recordCardHistory = async (
   supabase: any,
@@ -51,6 +70,14 @@ export default function BoardContent() {
   const { trackEvent } = useAnalytics();
   const [isPasswordProtected, setIsPasswordProtected] = useState(false)
   const [hasPasswordAccess, setHasPasswordAccess] = useState(false)
+  const { isAuthenticated, isLoading } = useBoardAuth(boardId)
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false)
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      setShowPasswordPrompt(true)
+    }
+  }, [isLoading, isAuthenticated])
 
   useEffect(() => {
     const initializeBacklog = async () => {
@@ -181,6 +208,11 @@ export default function BoardContent() {
     if (!result.destination) return;
     const { source, destination, draggableId } = result;
     
+    // Ensure password is set before drag operations
+    if (boardId) {
+      await ensureBoardPassword(supabase, boardId)
+    }
+
     if (result.type === 'card') {
       // Determine if we're working with backlog or board cards
       const isBacklogSource = source.droppableId === "backlog";
@@ -475,6 +507,11 @@ export default function BoardContent() {
     color: string | null
     due_date: string | null
   }) => {
+    // Ensure password is set before adding card
+    if (boardId) {
+      await ensureBoardPassword(supabase, boardId)
+    }
+
     const newPosition = boardCards.filter(card => card.column_id === columnId).length
 
     const { data: card } = await supabase
@@ -597,6 +634,22 @@ export default function BoardContent() {
     } catch (error) {
       console.error('Error creating board:', error)
     }
+  }
+
+  if (isLoading) {
+    return <div>Loading...</div>
+  }
+
+  if (showPasswordPrompt) {
+    return (
+      <PasswordProtection 
+        boardId={boardId!} 
+        onSuccess={() => {
+          setShowPasswordPrompt(false)
+          window.location.reload() // Reload to refresh authentication state
+        }} 
+      />
+    )
   }
 
   if (boardNotFound) {

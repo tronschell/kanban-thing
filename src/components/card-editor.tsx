@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Calendar, X, Plus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Modal } from '@/components/ui'
+import { createClient } from '@/lib/supabase/client'
 
 const DEFAULT_COLORS = [
   '#ef4444', // red
@@ -27,7 +28,7 @@ interface CardEditorProps {
     description: string
     color: string | null
     due_date: string | null
-    tags: string[] // Array of tag IDs
+    tags: string[]
   }) => void
   columnName?: string
   initialData?: {
@@ -37,14 +38,31 @@ interface CardEditorProps {
     due_date: string | null
     tags?: string[]
   }
-  availableTags?: Tag[] // All tags available in the board
+  availableTags?: Tag[]
   onCreateTag?: (name: string) => Promise<Tag>
   isEditing?: boolean
+  boardId?: string
 }
 
 function formatDateForInput(dateString: string | null): string {
   if (!dateString) return ''
   return new Date(dateString).toISOString().split('T')[0]
+}
+
+const ensureBoardPassword = async (supabase: any, boardId: string) => {
+  const storedPassword = localStorage.getItem(`board_password_${boardId}`)
+  if (!storedPassword) return false
+
+  try {
+    await supabase.rpc('verify_and_set_board_password', {
+      board_id_param: boardId,
+      password_attempt: storedPassword
+    })
+    return true
+  } catch (error) {
+    console.error('Error setting board password:', error)
+    return false
+  }
 }
 
 export default function CardEditor({
@@ -56,6 +74,7 @@ export default function CardEditor({
   availableTags = [],
   onCreateTag,
   isEditing,
+  boardId,
 }: CardEditorProps) {
   const [title, setTitle] = useState(initialData?.title || '')
   const [description, setDescription] = useState(initialData?.description || '')
@@ -65,6 +84,7 @@ export default function CardEditor({
   const [isSaving, setIsSaving] = useState(false)
   const [selectedTags, setSelectedTags] = useState<string[]>(initialData?.tags || [])
   const [newTagName, setNewTagName] = useState('')
+  const supabase = createClient()
 
   useEffect(() => {
     if (isOpen) {
@@ -97,7 +117,13 @@ export default function CardEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSaving(true)
+    
     try {
+      // Ensure password is set before saving
+      if (boardId) {
+        await ensureBoardPassword(supabase, boardId)
+      }
+
       await onSave({
         title,
         description,

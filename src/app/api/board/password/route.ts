@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     if (action === 'verify') {
       console.log('Verifying password for board:', boardId)
       const { data, error } = await supabase
-        .rpc('verify_board_password', {
+        .rpc('verify_and_set_board_password', {
           board_id_param: boardId,
           password_attempt: password
         })
@@ -26,7 +26,14 @@ export async function POST(request: Request) {
 
       if (error) throw error
 
-      return NextResponse.json({ success: data })
+      if (data) {
+        return NextResponse.json({ 
+          success: true,
+          password: password
+        })
+      }
+
+      return NextResponse.json({ success: false })
     }
 
     if (action === 'set') {
