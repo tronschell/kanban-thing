@@ -48,7 +48,7 @@ function KanbanStructuredData() {
             "price": "0",
             "priceCurrency": "USD"
           },
-          "description": "A free, no-signup Kanban board application built to make you extraordinarily productive. The easiest way to organize your work.",
+          "description": "A free, no-signup Kanban board application/tool built to make you extraordinarily productive. The easiest way to organize your work.",
           "featureList": [
             "No sign-up required",
             "Always free",
@@ -229,7 +229,7 @@ export default function Home() {
             >
               Built to make you extraordinarily productive.
               <br className="hidden sm:block" />
-              The easiest way to organize your work.
+              The easiest tool to organize your work.
             </motion.p>
 
             <StatsDisplay />

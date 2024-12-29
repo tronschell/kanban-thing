@@ -18,7 +18,7 @@ export default function AboutContent() {
         price: '0',
         priceCurrency: 'USD'
       },
-      description: 'A simple, free, and efficient Kanban board application designed to help individuals and teams organize their work effectively.'
+      description: 'A simple, free, and efficient Kanban board application/tool designed to help individuals and teams organize their work effectively.'
     }
   }
 
@@ -39,7 +39,7 @@ export default function AboutContent() {
             
             <div className="prose prose-invert max-w-none">
               <p>
-                KanbanThing is a simple, free, and efficient Kanban board application designed to help individuals 
+                KanbanThing is a simple, free, and efficient Kanban board application/tool designed to help individuals 
                 and teams organize their work effectively. Built with modern web technologies, it offers 
                 a seamless experience for managing tasks and projects.
               </p>
@@ -47,7 +47,7 @@ export default function AboutContent() {
               <h2>Key Features</h2>
               <ul>
                 <li>No sign-up required - start organizing instantly</li>
-                <li>Shareable boards - collaborate with anyone via a simple link</li>
+                <li>Shareable kanban boards - collaborate with anyone via a simple link</li>
                 <li>Drag-and-drop interface</li>
                 <li>Dark mode support</li>
                 <li>Mobile-friendly design</li>
@@ -55,7 +55,7 @@ export default function AboutContent() {
 
               <h2>Technology Stack</h2>
               <p>
-                KanbanThing is built using Next.js, React, TypeScript, and Tailwind CSS. 
+                KanbanThing is a tool built using Next.js, React, TypeScript, and Tailwind CSS. 
                 It leverages Supabase for the backend and real-time updates.
               </p>
 
