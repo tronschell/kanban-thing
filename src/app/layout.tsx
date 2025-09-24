@@ -45,6 +45,7 @@ export default function RootLayout({
       <head>
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7416624351466531"
           crossOrigin="anonymous"></script>
+        <meta name='admaven-placement' content='Bqja8rds7'></meta>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-full overflow-auto`}
