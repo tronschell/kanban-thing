@@ -44,7 +44,7 @@ interface CardEditorProps {
   boardId?: string
 }
 
-function formatDateForInput(dateString: string | null): string {
+function formatDateForInput(dateString: string | null | undefined): string {
   if (!dateString) return ''
   return new Date(dateString).toISOString().split('T')[0]
 }
@@ -147,8 +147,9 @@ export default function CardEditor({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Title</label>
+          <label htmlFor="card-title" className="block text-sm font-medium mb-1">Title</label>
           <input
+            id="card-title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -160,7 +161,7 @@ export default function CardEditor({
 
         <div>
           <div className="flex justify-between items-center mb-1">
-            <label className="block text-sm font-medium">Description</label>
+            <label htmlFor="card-description" className="block text-sm font-medium">Description</label>
             <button
               type="button"
               onClick={() => setIsPreview(!isPreview)}
@@ -175,6 +176,7 @@ export default function CardEditor({
             </div>
           ) : (
             <textarea
+              id="card-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full p-2 border rounded dark:border-gray-700 dark:bg-gray-900 min-h-[100px]"
@@ -184,7 +186,7 @@ export default function CardEditor({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Color</label>
+          <label htmlFor="card-color" className="block text-sm font-medium mb-1">Color</label>
           <div className="flex gap-2 mb-2">
             {DEFAULT_COLORS.map((c) => (
               <button
@@ -199,6 +201,7 @@ export default function CardEditor({
             ))}
           </div>
           <input
+            id="card-color"
             type="text"
             value={color}
             onChange={(e) => setColor(e.target.value)}
@@ -209,8 +212,9 @@ export default function CardEditor({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Due Date</label>
+          <label htmlFor="card-due-date" className="block text-sm font-medium mb-1">Due Date</label>
           <input
+            id="card-due-date"
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
@@ -219,7 +223,7 @@ export default function CardEditor({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Tags</label>
+          <label htmlFor="card-tags" className="block text-sm font-medium mb-1">Tags</label>
           <div className="flex flex-wrap gap-2 mb-2">
             {selectedTags.map(tagId => {
               const tag = availableTags.find(t => t.id === tagId)
@@ -239,6 +243,7 @@ export default function CardEditor({
                     type="button"
                     onClick={() => handleRemoveTag(tag.id)}
                     className="p-0.5 hover:bg-black/10 rounded-full"
+                    aria-label={`Remove ${tag.name} tag`}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -249,6 +254,7 @@ export default function CardEditor({
           
           <div className="flex gap-2">
             <input
+              id="card-tags"
               type="text"
               value={newTagName}
               onChange={(e) => setNewTagName(e.target.value)}
@@ -260,6 +266,7 @@ export default function CardEditor({
               onClick={handleAddTag}
               disabled={!newTagName.trim()}
               className="px-3 py-2 border rounded hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
+              aria-label="Add tag"
             >
               <Plus className="w-4 h-4" />
             </button>

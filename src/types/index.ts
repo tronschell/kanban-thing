@@ -7,6 +7,15 @@ export interface Card {
   position: number
   column_id: string
   created_at: string
+  tags?: Tag[]
+}
+
+export interface Tag {
+  id: string
+  board_id: string
+  name: string
+  color: string
+  created_at: string
 }
 
 export interface Column {

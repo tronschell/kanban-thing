@@ -6,6 +6,14 @@ import { Trash2 } from 'lucide-react'
 import CardEditor from './card-editor'
 import { Modal } from '@/components/ui'
 
+interface Tag {
+  id: string
+  board_id: string
+  name: string
+  color: string
+  created_at: string
+}
+
 interface Card {
   id: string
   title: string
@@ -13,6 +21,7 @@ interface Card {
   color: string | null
   position: number
   due_date: string | null
+  tags?: Tag[]
 }
 
 interface SortableCardProps {
@@ -24,7 +33,11 @@ interface SortableCardProps {
     description: string
     color: string | null
     due_date: string | null
+    tags?: string[]
   }) => Promise<void>
+  availableTags?: Tag[]
+  onCreateTag?: (name: string) => Promise<Tag>
+  boardId?: string
 }
 
 const formatDueDate = (dueDate: string) => {
@@ -78,11 +91,19 @@ const getDueDateColor = (dueDate: string) => {
   return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
 };
 
-export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardProps) {
+export function SortableCard({
+  card,
+  index,
+  onDelete,
+  onUpdate,
+  availableTags = [],
+  onCreateTag,
+  boardId
+}: SortableCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  let clickTimeout: NodeJS.Timeout
+  let clickTimeout: NodeJS.Timeout | undefined
 
   const handleClick = () => {
     // Don't open editor if we're dragging
@@ -114,6 +135,7 @@ export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardPr
     description: string
     color: string | null
     due_date: string | null
+    tags: string[]
   }) => {
     try {
       await onUpdate(card.id, data)
@@ -176,6 +198,24 @@ export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardPr
                 </p>
               )}
               
+              {/* Tags */}
+              {card.tags && card.tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {card.tags.map(tag => (
+                    <span
+                      key={tag.id}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      style={{
+                        backgroundColor: tag.color || '#e5e7eb',
+                        color: tag.color ? 'white' : 'black'
+                      }}
+                    >
+                      {tag.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {card.due_date && (
                 <div className="mt-2">
                   <span className={`
@@ -234,9 +274,13 @@ export function SortableCard({ card, index, onDelete, onUpdate }: SortableCardPr
             title: card.title,
             description: card.description || '',
             color: card.color,
-            due_date: card.due_date || null
+            due_date: card.due_date || null,
+            tags: card.tags?.map(tag => tag.id) || []
           }}
+          availableTags={availableTags}
+          onCreateTag={onCreateTag}
           isEditing={true}
+          boardId={boardId}
         />
       )}
     </>

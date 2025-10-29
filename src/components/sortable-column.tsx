@@ -12,6 +12,14 @@ interface Column {
   created_at: string
 }
 
+interface Tag {
+  id: string
+  board_id: string
+  name: string
+  color: string
+  created_at: string
+}
+
 interface Card {
   id: string
   column_id: string
@@ -21,6 +29,7 @@ interface Card {
   position: number
   created_at: string
   due_date: string | null
+  tags?: Tag[]
 }
 
 interface SortableColumnProps {
@@ -33,8 +42,12 @@ interface SortableColumnProps {
     description: string
     color: string | null
     due_date: string | null
+    tags?: string[]
   }) => Promise<void>
   onEdit: () => void
+  availableTags?: Tag[]
+  onCreateTag?: (name: string) => Promise<Tag>
+  boardId?: string
 }
 
 // Add this CSS class to prevent transform animations on non-dragging items
@@ -44,7 +57,17 @@ const noTransformClass = css`
   }
 `
 
-export function SortableColumn({ column, cards, onAddCard, onDeleteCard, onUpdateCard, onEdit }: SortableColumnProps) {
+export function SortableColumn({
+  column,
+  cards,
+  onAddCard,
+  onDeleteCard,
+  onUpdateCard,
+  onEdit,
+  availableTags = [],
+  onCreateTag,
+  boardId
+}: SortableColumnProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   
   const COLLAPSED_CARD_COUNT = 4
@@ -102,6 +125,9 @@ export function SortableColumn({ column, cards, onAddCard, onDeleteCard, onUpdat
                   index={index}
                   onDelete={() => onDeleteCard(card.id)}
                   onUpdate={onUpdateCard}
+                  availableTags={availableTags}
+                  onCreateTag={onCreateTag}
+                  boardId={boardId}
                 />
               ))}
             </div>

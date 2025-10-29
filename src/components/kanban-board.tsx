@@ -33,6 +33,15 @@ interface Card {
   due_date: string | null
   position: number
   created_at: string
+  tags?: Tag[]
+}
+
+interface Tag {
+  id: string
+  board_id: string
+  name: string
+  color: string
+  created_at: string
 }
 
 interface CardHistory {
@@ -227,6 +236,7 @@ export default function KanbanBoard({
   const [isDraggingBetweenColumns, setIsDraggingBetweenColumns] = useState(false);
   const [url, setUrl] = useState<string>('')
   const [isReorderingColumns, setIsReorderingColumns] = useState(false)
+  const [availableTags, setAvailableTags] = useState<Tag[]>([])
 
   useEffect(() => {
     const fetchBoardData = async () => {
@@ -256,14 +266,43 @@ export default function KanbanBoard({
         .neq('name', 'Backlog')
         .order('position')
 
+      // Fetch cards with their tags
       const { data: cardsData } = await supabase
         .from('cards')
-        .select()
+        .select(`
+          *,
+          card_tags (
+            tag_id,
+            tags (
+              id,
+              name,
+              color,
+              board_id,
+              created_at
+            )
+          )
+        `)
         .in('column_id', (columnsData || []).map(col => col.id))
         .order('position')
 
+      // Fetch all tags for this board
+      const { data: tagsData } = await supabase
+        .from('tags')
+        .select('*')
+        .eq('board_id', boardId)
+        .order('name')
+
       if (columnsData) setColumns(columnsData)
-      if (cardsData) setCards(cardsData)
+      if (tagsData) setAvailableTags(tagsData)
+      
+      if (cardsData) {
+        // Transform the cards data to include tags array
+        const cardsWithTags = cardsData.map((card: any) => ({
+          ...card,
+          tags: card.card_tags?.map((ct: any) => ct.tags).filter(Boolean) || []
+        }))
+        setCards(cardsWithTags)
+      }
       setLoading(false)
     }
 
@@ -474,15 +513,35 @@ export default function KanbanBoard({
     }
   }
 
+  const handleCreateTag = async (name: string): Promise<Tag> => {
+    const { data: tag, error } = await supabase
+      .from('tags')
+      .insert({
+        board_id: boardId,
+        name,
+        color: '#3b82f6' // Default blue color
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    if (!tag) throw new Error('Failed to create tag')
+
+    // Update local state
+    setAvailableTags(prev => [...prev, tag])
+    return tag
+  }
+
   const handleAddCard = async (columnId: string, cardData: {
     title: string
     description: string
     color: string | null
     due_date: string | null
+    tags: string[]
   }) => {
     const newPosition = cards.filter(card => card.column_id === columnId).length
 
-    const { data: card } = await supabase
+    const { data: card, error } = await supabase
       .from('cards')
       .insert({
         column_id: columnId,
@@ -495,8 +554,30 @@ export default function KanbanBoard({
       .select()
       .single()
 
+    if (error) throw error
+
+    if (card && cardData.tags.length > 0) {
+      // Add tag relationships
+      const tagRelations = cardData.tags.map(tagId => ({
+        card_id: card.id,
+        tag_id: tagId
+      }))
+
+      const { error: tagError } = await supabase
+        .from('card_tags')
+        .insert(tagRelations)
+
+      if (tagError) {
+        console.error('Error adding tags to card:', tagError)
+      }
+    }
+
     if (card) {
-      setCards([...cards, card])
+      // Get the tags for the new card
+      const cardTags = availableTags.filter(tag => cardData.tags.includes(tag.id))
+      const cardWithTags = { ...card, tags: cardTags }
+      
+      setCards([...cards, cardWithTags])
       
       // Scroll the new card into view
       setTimeout(() => {
@@ -527,6 +608,7 @@ export default function KanbanBoard({
     description: string
     color: string | null
     due_date: string | null
+    tags?: string[]
   }) => {
     try {
       const { error } = await supabase
@@ -541,11 +623,44 @@ export default function KanbanBoard({
 
       if (error) throw error
 
+      // Update card tags
+      if (data.tags) {
+        // First, remove all existing tags for this card
+        await supabase
+          .from('card_tags')
+          .delete()
+          .eq('card_id', cardId)
+
+        // Then add the new tags
+        if (data.tags.length > 0) {
+          const tagRelations = data.tags.map(tagId => ({
+            card_id: cardId,
+            tag_id: tagId
+          }))
+
+          const { error: tagError } = await supabase
+            .from('card_tags')
+            .insert(tagRelations)
+
+          if (tagError) {
+            console.error('Error updating card tags:', tagError)
+          }
+        }
+      }
+
       // Update local state
+      const cardTags = availableTags.filter(tag => data.tags?.includes(tag.id))
       setCards(currentCards =>
         currentCards.map(card =>
           card.id === cardId
-            ? { ...card, ...data }
+            ? {
+                ...card,
+                title: data.title,
+                description: data.description,
+                color: data.color,
+                due_date: data.due_date,
+                tags: cardTags
+              }
             : card
         )
       )
@@ -663,6 +778,9 @@ export default function KanbanBoard({
             onEdit={() => {
               setIsReorderingColumns(true)
             }}
+            availableTags={availableTags}
+            onCreateTag={handleCreateTag}
+            boardId={boardId}
           />
         ))}
         
@@ -691,6 +809,9 @@ export default function KanbanBoard({
             }
           }}
           columnName={columns.find(c => c.id === addingCardToColumn)?.name}
+          availableTags={availableTags}
+          onCreateTag={handleCreateTag}
+          boardId={boardId}
         />
       )}
 
