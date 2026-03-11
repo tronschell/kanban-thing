@@ -45,7 +45,7 @@ function BoardPageContent() {
 
   return (
     <motion.div 
-      className="flex-1 overflow-y-auto overscroll-behavior-y-contain"
+      className="flex-1 overflow-y-auto overscroll-behavior-y-auto"
       initial={{ opacity: 0, x: -100 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
