@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { recordCardHistory } from '@/lib/board-writes'
-import { randomLabelColor } from '@/lib/colors'
+import { dayToDueDate, dueDateToDay } from '@/lib/date-utils'
 import { Card, Column } from '@/types'
 
 export interface CommandResponse {
@@ -10,11 +10,14 @@ export interface CommandResponse {
 }
 
 export interface BoardCommandContext {
+  boardId: string
   columns: Column[]
   backlogColumnId?: string | null
   setBoardCards?: Dispatch<SetStateAction<Card[]>>
   setBacklogCards?: Dispatch<SetStateAction<Card[]>>
 }
+
+type SnapshotCard = Card & { card_history: { timestamp: string }[] }
 
 const ALIASES: Record<string, string> = {
   cr: 'create',
@@ -24,10 +27,22 @@ const ALIASES: Record<string, string> = {
   h: 'help',
 }
 
-const HELP = `create (cr) {title} [in {column}] [--desc "text"] [--color #hex]
+const KNOWN = ['create', 'move', 'delete', 'list', 'find', 'stuck', 'due']
+
+const EMPTY_DUE: Record<string, string> = {
+  overdue: 'Nothing overdue.',
+  today: 'Nothing due today.',
+  week: 'Nothing due this week.',
+}
+
+const HELP = `create (cr) {title} [in {column}] [--desc "text"] [--due YYYY-MM-DD] [--color #hex]
 move (mv) {title} to {column}
 delete (dl) {title}
 list (l)
+find {text}
+stuck [days]
+due [today|week|overdue]
+clear
 help (h)
 
 Without "in {column}" a new card lands in Backlog.`
@@ -43,6 +58,26 @@ const unknownColumn = (columns: Column[], name: string) =>
     `Column "${name}" not found. Available: ${columns.map((column) => `"${column.name}"`).join(', ')}`
   )
 
+const nameOfColumn = (columns: Column[], columnId: string) =>
+  columns.find((column) => column.id === columnId)?.name ?? 'Unknown'
+
+const nextPosition = (cards: Card[], columnId: string) =>
+  cards
+    .filter((card) => card.column_id === columnId)
+    .reduce((next, card) => Math.max(next, card.position + 1), 0)
+
+const cardsTitled = (cards: SnapshotCard[], title: string) =>
+  cards.filter((card) => card.title.toLowerCase() === title.toLowerCase())
+
+const localDay = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
+const lastActivity = (card: SnapshotCard) =>
+  card.card_history.reduce(
+    (latest, entry) => Math.max(latest, new Date(entry.timestamp).getTime()),
+    new Date(card.created_at).getTime()
+  )
+
 const listFor = (ctx: BoardCommandContext, columnId: string) =>
   columnId === ctx.backlogColumnId ? ctx.setBacklogCards : ctx.setBoardCards
 
@@ -50,36 +85,37 @@ const addCard = (ctx: BoardCommandContext, card: Card) =>
   listFor(ctx, card.column_id)?.((prev) => [...prev, card])
 
 const removeCard = (ctx: BoardCommandContext, card: Card) =>
-  listFor(ctx, card.column_id)?.((prev) => prev.filter((c) => c.id !== card.id))
+  listFor(ctx, card.column_id)?.((prev) => prev.filter((item) => item.id !== card.id))
 
 export async function runBoardCommand(
   input: string,
   ctx: BoardCommandContext
 ): Promise<CommandResponse> {
-  const supabase = createClient()
-  const columnIds = ctx.columns.map((column) => column.id)
-
-  const nextPositionIn = async (columnId: string) => {
-    const { count } = await supabase
-      .from('cards')
-      .select('id', { count: 'exact', head: true })
-      .eq('column_id', columnId)
-    return count ?? 0
-  }
-
-  const findCardByTitle = async (title: string) => {
-    const { data } = await supabase.from('cards').select('*').in('column_id', columnIds)
-    return (
-      (data as Card[] | null)?.find((card) => card.title.toLowerCase() === title.toLowerCase()) ??
-      null
-    )
-  }
-
   const words = input.trim().split(/\s+/)
   const action = ALIASES[words[0].toLowerCase()] ?? words[0].toLowerCase()
 
+  if (action === 'help') return ok(HELP)
+  if (!KNOWN.includes(action)) return failure('Unknown command. Type help for the list.')
+
+  const supabase = createClient()
+  const columns = ctx.columns
+  if (columns.length === 0) return failure('The board is still loading.')
+  const columnIds = columns.map((column) => column.id)
+
   try {
-    if (action === 'help') return ok(HELP)
+    const { data: authorized } = await supabase.rpc('verify_and_set_board_password', {
+      board_id_param: ctx.boardId,
+      password_attempt: localStorage.getItem(`board_password_${ctx.boardId}`) ?? '',
+    })
+    if (authorized !== true) return failure('Board password required.')
+
+    const { data, error } = await supabase
+      .from('cards')
+      .select('*, card_history(timestamp)')
+      .in('column_id', columnIds)
+      .order('position')
+    if (error) throw error
+    const snapshot = (data ?? []) as unknown as SnapshotCard[]
 
     if (action === 'create') {
       const flagsAt = input.indexOf('--')
@@ -90,26 +126,30 @@ export async function runBoardCommand(
       if (!title) return failure('Usage: create {title} [in {column}]')
 
       const columnName = inAt === -1 ? 'Backlog' : head.slice(inAt + 1).join(' ')
-      const column = findColumn(ctx.columns, columnName)
-      if (!column) return unknownColumn(ctx.columns, columnName)
+      const column = findColumn(columns, columnName)
+      if (!column) return unknownColumn(columns, columnName)
 
       const description = input.match(/--desc\s+"([^"]+)"/i)?.[1] ?? null
-      const color = input.match(/--color\s+(#[0-9a-f]{6}|#[0-9a-f]{3})/i)?.[1] ?? randomLabelColor()
+      const color = input.match(/--color\s+(#[0-9a-f]{6}|#[0-9a-f]{3})\b/i)?.[1] ?? null
 
-      const { data: card, error } = await supabase
+      const dueDay = input.match(/--due\s+(\d{4}-\d{2}-\d{2})\b/)?.[1] ?? null
+      if (!dueDay && /--due\b/i.test(input)) return failure('Usage: --due YYYY-MM-DD')
+
+      const { data: created, error: createError } = await supabase
         .from('cards')
         .insert({
           column_id: column.id,
           title,
           description,
           color,
-          position: await nextPositionIn(column.id),
+          due_date: dueDay ? dayToDueDate(dueDay) : null,
+          position: nextPosition(snapshot, column.id),
         })
         .select('*')
         .single()
 
-      if (error) throw error
-      if (card) addCard(ctx, card as Card)
+      if (createError) throw createError
+      if (created) addCard(ctx, created as Card)
 
       return ok(`Created "${title}" in ${column.name}`)
     }
@@ -121,25 +161,32 @@ export async function runBoardCommand(
       }
 
       const columnName = words.slice(toAt + 1).join(' ')
-      const column = findColumn(ctx.columns, columnName)
-      if (!column) return unknownColumn(ctx.columns, columnName)
+      const column = findColumn(columns, columnName)
+      if (!column) return unknownColumn(columns, columnName)
 
       const title = words.slice(1, toAt).join(' ')
-      const card = await findCardByTitle(title)
-      if (!card) return failure(`Card "${title}" not found`)
+      const matches = cardsTitled(snapshot, title)
+      if (matches.length === 0) return failure(`Card "${title}" not found`)
+      if (matches.length > 1) {
+        return failure(`${matches.length} cards match "${title}". Use a longer title.`)
+      }
 
+      const card = matches[0]
       if (card.column_id === column.id) return ok(`"${card.title}" is already in ${column.name}`)
 
-      const position = await nextPositionIn(column.id)
-      const { error } = await supabase
+      const position = nextPosition(snapshot, column.id)
+      const { error: moveError } = await supabase
         .from('cards')
         .update({ column_id: column.id, position })
         .eq('id', card.id)
+      if (moveError) throw moveError
 
-      if (error) throw error
-
-      const fromColumn = ctx.columns.find((item) => item.id === card.column_id)
-      await recordCardHistory(supabase, card.id, fromColumn?.name ?? 'Unknown', column.name)
+      await recordCardHistory(
+        supabase,
+        card.id,
+        nameOfColumn(columns, card.column_id),
+        column.name
+      )
 
       removeCard(ctx, card)
       addCard(ctx, { ...card, column_id: column.id, position })
@@ -151,37 +198,102 @@ export async function runBoardCommand(
       const title = words.slice(1).join(' ')
       if (!title) return failure('Usage: delete {title}')
 
-      const card = await findCardByTitle(title)
-      if (!card) return failure(`Card "${title}" not found`)
+      const matches = cardsTitled(snapshot, title)
+      if (matches.length === 0) return failure(`Card "${title}" not found`)
+      if (matches.length > 1) {
+        return failure(`${matches.length} cards match "${title}". Use a longer title.`)
+      }
 
-      const { error } = await supabase.from('cards').delete().eq('id', card.id)
-      if (error) throw error
+      const { error: deleteError } = await supabase.from('cards').delete().eq('id', matches[0].id)
+      if (deleteError) throw deleteError
 
-      removeCard(ctx, card)
+      removeCard(ctx, matches[0])
 
-      return ok(`Deleted "${card.title}"`)
+      return ok(`Deleted "${matches[0].title}"`)
     }
 
     if (action === 'list') {
-      const { data, error } = await supabase
-        .from('cards')
-        .select('title, column_id')
-        .in('column_id', columnIds)
-        .order('position')
-
-      if (error) throw error
-
-      const cards = (data ?? []) as { title: string; column_id: string }[]
-
       return ok(
-        ctx.columns
+        columns
           .map((column) => {
-            const titles = cards
+            const titles = snapshot
               .filter((card) => card.column_id === column.id)
               .map((card) => `  - ${card.title}`)
             return `${column.name.toUpperCase()}:\n${titles.join('\n') || '  - (empty)'}`
           })
           .join('\n\n')
+      )
+    }
+
+    if (action === 'find') {
+      const needle = words.slice(1).join(' ').toLowerCase()
+      if (!needle) return failure('Usage: find {text}')
+
+      const hits = snapshot.filter(
+        (card) =>
+          card.title.toLowerCase().includes(needle) ||
+          (card.description ?? '').toLowerCase().includes(needle)
+      )
+      if (hits.length === 0) return ok('No matches.')
+
+      return ok(
+        hits.map((card) => `${nameOfColumn(columns, card.column_id)} · ${card.title}`).join('\n')
+      )
+    }
+
+    if (action === 'stuck') {
+      const days = words[1] === undefined ? 7 : Number(words[1])
+      if (!Number.isFinite(days) || days < 0) return failure('Usage: stuck [days]')
+
+      const rightmost = columns[columns.length - 1]?.id
+      const hits = snapshot
+        .filter((card) => card.column_id !== ctx.backlogColumnId && card.column_id !== rightmost)
+        .map((card) => ({
+          card,
+          age: Math.floor((Date.now() - lastActivity(card)) / 86400000),
+        }))
+        .filter((entry) => entry.age >= days)
+        .sort((a, b) => b.age - a.age)
+
+      if (hits.length === 0) return ok(`Nothing stuck for ${days} days or more.`)
+
+      return ok(
+        hits
+          .map(
+            ({ card, age }) =>
+              `${age}d · ${nameOfColumn(columns, card.column_id)} · ${card.title}`
+          )
+          .join('\n')
+      )
+    }
+
+    if (action === 'due') {
+      const filter = (words[1] ?? 'overdue').toLowerCase()
+      if (!['today', 'week', 'overdue'].includes(filter)) {
+        return failure('Usage: due [today|week|overdue]')
+      }
+
+      const today = localDay(new Date())
+      const weekEnd = localDay(new Date(Date.now() + 7 * 86400000))
+      const inRange = (day: string) => {
+        if (filter === 'overdue') return day < today
+        if (filter === 'today') return day === today
+        return day >= today && day <= weekEnd
+      }
+
+      const hits = snapshot
+        .filter((card) => card.due_date && inRange(dueDateToDay(card.due_date)))
+        .sort((a, b) => dueDateToDay(a.due_date!).localeCompare(dueDateToDay(b.due_date!)))
+
+      if (hits.length === 0) return ok(EMPTY_DUE[filter])
+
+      return ok(
+        hits
+          .map(
+            (card) =>
+              `${dueDateToDay(card.due_date!)} · ${nameOfColumn(columns, card.column_id)} · ${card.title}`
+          )
+          .join('\n')
       )
     }
 
