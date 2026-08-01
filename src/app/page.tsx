@@ -31,7 +31,7 @@ const structuredData = {
   featureList: [
     "No sign-up required",
     "Always free",
-    "2-month board lifespan",
+    "Board lifespan you choose, 14 to 90 days, extendable any time",
     "Shareable board links",
     "Drag and drop interface",
   ],
@@ -276,9 +276,10 @@ function Features() {
               Boards are not listed or searchable, and the password is set at
               creation, so a leaked link alone is not enough.
             </Feature>
-            <Feature icon={<Timer />} title="Two month lifespan">
-              Boards are removed two months after they are created. Nothing
-              accumulates and there is no subscription to cancel.
+            <Feature icon={<Timer />} title="A lifespan you choose">
+              Boards last as long as you choose, from 14 to 90 days, and you can
+              extend one any time. Nothing accumulates and there is no
+              subscription to cancel.
             </Feature>
           </dl>
         </Reveal>
@@ -324,8 +325,9 @@ function ClosingCta() {
             Free, and it stays free
           </h2>
           <p className="mt-4 max-w-[62ch] text-md text-muted">
-            There is no paid tier to upgrade to and nothing to sign. Copy out
-            anything you want to keep before the two months are up.
+            There is no paid tier to upgrade to and nothing to sign. Pick a
+            lifespan of 14 to 90 days, extend it whenever you need to, and copy
+            out anything you want to keep before it runs out.
           </p>
           <Button asChild variant="primary" size="lg" className="mt-8">
             <Link href="/onboarding">Create a board</Link>

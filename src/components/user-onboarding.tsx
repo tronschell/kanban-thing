@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAnalytics } from '@/hooks/use-analytics'
-import { Button, Input } from '@/components/ui'
+import { Button, Input, Select } from '@/components/ui'
+import { DEFAULT_LIFESPAN_DAYS, LIFESPAN_OPTIONS, expiryDateFor } from '@/lib/board-lifespan'
 import PasswordValidator from 'password-validator'
 
 const passwordSchema = new PasswordValidator()
@@ -28,6 +29,7 @@ const DEFAULT_COLUMNS = ['To Do', 'In Progress', 'Done']
 export default function UserOnboarding() {
   const [boardName, setBoardName] = useState('')
   const [password, setPassword] = useState('')
+  const [lifespanDays, setLifespanDays] = useState(DEFAULT_LIFESPAN_DAYS)
   const [nameError, setNameError] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [submitError, setSubmitError] = useState('')
@@ -57,47 +59,22 @@ export default function UserOnboarding() {
 
     setIsCreating(true)
     try {
-      const { data: board, error: boardError } = await supabase
-        .from('boards')
-        .insert({ name })
-        .select('id')
-        .single()
-
-      if (boardError || !board?.id) throw boardError ?? new Error('Failed to create board')
-
-      const passwordResponse = await fetch('/api/board/password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ boardId: board.id, password, action: 'set' }),
+      const { data: boardId, error: createError } = await supabase.rpc('board_create', {
+        name_param: name,
+        password_param: password,
+        extra_columns: DEFAULT_COLUMNS,
+        days_param: lifespanDays,
       })
 
-      if (!passwordResponse.ok) {
-        await supabase.from('boards').delete().eq('id', board.id)
-        throw new Error('Failed to set the board password')
-      }
+      if (createError || !boardId) throw createError ?? new Error('Failed to create board')
 
-      const { error: columnsError } = await supabase.from('columns').insert(
-        DEFAULT_COLUMNS.map((columnName, position) => ({
-          board_id: board.id,
-          name: columnName,
-          position,
-        }))
-      )
+      localStorage.setItem(`board_password_${boardId}`, password)
+      localStorage.setItem(`board_access_${boardId}`, 'true')
+      localStorage.setItem('kanban_user_id', boardId)
 
-      if (columnsError) {
-        await supabase.from('boards').delete().eq('id', board.id)
-        throw columnsError
-      }
+      trackEvent('create_board', { board_id: boardId, board_name: name })
 
-      localStorage.setItem(`board_password_${board.id}`, password)
-      localStorage.setItem(`board_access_${board.id}`, 'true')
-      localStorage.setItem('kanban_user_id', board.id)
-
-      await supabase.rpc('set_session_board_password', { password_param: password })
-
-      trackEvent('create_board', { board_id: board.id, board_name: name })
-
-      router.replace(`/board?id=${board.id}`)
+      router.replace(`/board?id=${boardId}`)
     } catch (error) {
       console.error('Error creating board:', error)
       setSubmitError('Could not create the board. Please try again.')
@@ -159,6 +136,27 @@ export default function UserOnboarding() {
           />
           <p id="board-password-error" role="alert" className="mt-1 min-h-4 text-xs text-danger">
             {passwordError}
+          </p>
+        </div>
+
+        <div className="mt-2">
+          <label htmlFor="board-lifespan" className="block text-xs font-medium text-muted mb-1.5">
+            Board lifespan
+          </label>
+          <Select
+            id="board-lifespan"
+            value={lifespanDays}
+            onChange={(e) => setLifespanDays(Number(e.target.value))}
+            disabled={isCreating}
+          >
+            {LIFESPAN_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option} days
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1 min-h-4 text-xs text-subtle">
+            Expires {expiryDateFor(lifespanDays)}. You can extend it any time from the board menu.
           </p>
         </div>
 
