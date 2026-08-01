@@ -1,6 +1,6 @@
 import { addDays, format } from 'date-fns'
 
-export const LIFESPAN_OPTIONS = [14, 30, 60, 90]
+export const LIFESPAN_OPTIONS = [14, 28, 60]
 export const DEFAULT_LIFESPAN_DAYS = 60
 export const EXPIRY_WARNING_HOURS = 24 * 7
 

@@ -26,7 +26,7 @@ export function useBoardExpiration(boardId: string | undefined) {
     }
   }, [boardId, supabase])
 
-  return { expiresAt, setExpiresAt }
+  return expiresAt
 }
 
 export function useHoursLeft(expiresAt: string | null) {

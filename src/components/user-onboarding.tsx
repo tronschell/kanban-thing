@@ -156,7 +156,8 @@ export default function UserOnboarding() {
             ))}
           </Select>
           <p className="mt-1 min-h-4 text-xs text-subtle">
-            Expires {expiryDateFor(lifespanDays)}. You can extend it any time from the board menu.
+            Expires {expiryDateFor(lifespanDays)}. Boards cannot be renewed, so export anything you
+            need to keep before then.
           </p>
         </div>
 

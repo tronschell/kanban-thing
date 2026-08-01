@@ -48,7 +48,7 @@ export default function Navbar({
   const [openModal, setOpenModal] = useState<Modal>(null)
   const [boardName, setBoardName] = useState('')
   const [cardTitles, setCardTitles] = useState<{ title: string }[]>([])
-  const { expiresAt, setExpiresAt } = useBoardExpiration(boardId)
+  const expiresAt = useBoardExpiration(boardId)
   const hoursLeft = useHoursLeft(expiresAt)
   const supabase = useMemo(createClient, [])
 
@@ -200,10 +200,10 @@ export default function Navbar({
           className="flex flex-wrap items-center gap-2 border-b border-danger bg-danger-soft px-3 py-2"
         >
           <TriangleAlert aria-hidden className="size-4 shrink-0 text-danger" />
-          <p className="min-w-0 flex-1 text-sm text-danger">{expiryWarningText(hoursLeft)}</p>
-          <Button size="sm" onClick={() => setOpenModal('lifespan')}>
-            Extend
-          </Button>
+          <p className="min-w-0 flex-1 text-sm text-danger">
+            {expiryWarningText(hoursLeft)} It cannot be renewed, so export it now or duplicate it
+            into a fresh board.
+          </p>
           <Button size="sm" onClick={() => exportBoardAsJson(boardId)}>
             Export JSON
           </Button>
@@ -255,9 +255,7 @@ export default function Navbar({
             <BoardLifespanModal
               open={openModal === 'lifespan'}
               onClose={closeModal}
-              boardId={boardId}
               expiresAt={expiresAt}
-              onExtended={setExpiresAt}
             />
           )}
 
