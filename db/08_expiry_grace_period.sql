@@ -1,4 +1,7 @@
--- Run after 06 and strictly BEFORE 09_schedule_cleanup.sql: rescues every already-expired board, then adds the lifespan controls. Re-running touches 0 rows as long as nothing has expired since.
+-- Run after 06 and strictly BEFORE 09_schedule_cleanup.sql.
+-- The grace update is a ONE-TIME rescue for boards that outlived their expiry only because
+-- cleanup_expired_boards was broken. Boards have a hard 60-day life and there is no extend
+-- path: board_extend is dropped here and must never be reintroduced.
 
 with extended as (
   update boards
@@ -33,7 +36,7 @@ begin
       when password_param is null or password_param = '' then null
       else crypt(password_param, gen_salt('bf'))
     end,
-    now() + make_interval(days => greatest(1, least(90, coalesce(days_param, 60))))
+    now() + make_interval(days => greatest(1, least(60, coalesce(days_param, 60))))
   )
   returning id into new_board_id;
 
@@ -48,45 +51,10 @@ begin
 end;
 $$;
 
-create or replace function board_extend(
-  board_id_param uuid,
-  password_attempt text,
-  days_param integer default 28
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public, extensions, pg_temp
-as $$
-declare
-  access text;
-  new_expiry timestamptz;
-begin
-  access := board_check_password(board_id_param, password_attempt);
-  if access <> 'ok' then
-    return jsonb_build_object('status', access);
-  end if;
+drop function if exists board_extend(uuid, text, integer);
 
-  update boards
-  set expires_at = greatest(
-    expires_at,
-    now() + make_interval(days => greatest(1, least(90, coalesce(days_param, 28))))
-  )
-  where id = board_id_param
-  returning expires_at into new_expiry;
+revoke execute on function board_create(text, text, text[], integer) from public;
 
-  return jsonb_build_object('status', 'ok', 'expires_at', new_expiry);
-end;
-$$;
-
-revoke execute on function
-  board_create(text, text, text[], integer),
-  board_extend(uuid, text, integer)
-from public;
-
-grant execute on function
-  board_create(text, text, text[], integer),
-  board_extend(uuid, text, integer)
-to anon, authenticated;
+grant execute on function board_create(text, text, text[], integer) to anon, authenticated;
 
 commit;

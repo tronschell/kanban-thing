@@ -44,3 +44,6 @@ next-env.d.ts
 
 metadata.json
 src/lib/supabase/add_board_password.sql
+
+# agent worktrees
+.claude/worktrees/
