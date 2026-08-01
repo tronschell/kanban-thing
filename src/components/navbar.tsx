@@ -11,6 +11,7 @@ import { TerminalInterface } from '@/components/terminal-interface'
 import { BoardMenu } from '@/components/navbar/board-menu'
 import {
   DeleteBoardModal,
+  DuplicateBoardModal,
   RenameBoardModal,
   SetPasswordModal,
 } from '@/components/navbar/board-modals'
@@ -32,7 +33,7 @@ interface NavbarProps {
   onError: (message: string) => void
 }
 
-type Modal = 'create' | 'terminal' | 'rename' | 'password' | 'delete' | 'appearance' | null
+type Modal = 'create' | 'terminal' | 'rename' | 'duplicate' | 'password' | 'delete' | 'appearance' | null
 
 export default function Navbar({
   boardId,
@@ -176,6 +177,7 @@ export default function Navbar({
               <BoardMenu
                 onAppearance={() => setOpenModal('appearance')}
                 onRename={() => setOpenModal('rename')}
+                onDuplicate={() => setOpenModal('duplicate')}
                 onSetPassword={() => setOpenModal('password')}
                 onExportJson={() => exportBoardAsJson(boardId)}
                 onExportCsv={() => exportBoardAsCsv(boardId)}
@@ -219,6 +221,13 @@ export default function Navbar({
             boardId={boardId}
             boardName={boardName}
             onRenamed={setBoardName}
+          />
+
+          <DuplicateBoardModal
+            open={openModal === 'duplicate'}
+            onClose={closeModal}
+            boardId={boardId}
+            boardName={boardName}
           />
 
           <SetPasswordModal
