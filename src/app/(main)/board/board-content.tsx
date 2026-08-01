@@ -22,6 +22,7 @@ import CardEditor from '@/components/card-editor'
 import ColumnEditor from '@/components/column-editor'
 import { CardPreview } from '@/components/sortable-card'
 import { PasswordProtection } from '@/components/password-protection'
+import ReadOnlyBoard from '@/components/read-only-board'
 import { Button, IconButton, Input, Modal, ModalFooter, Skeleton } from '@/components/ui'
 import {
   boardCollisionDetection,
@@ -119,6 +120,18 @@ function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () =>
 }
 
 export default function BoardContent() {
+  const searchParams = useSearchParams()
+  const boardId = searchParams.get('id')
+  const viewToken = searchParams.get('view')
+
+  if (boardId && viewToken) {
+    return <ReadOnlyBoard boardId={boardId} viewToken={viewToken} />
+  }
+
+  return <EditableBoard />
+}
+
+function EditableBoard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const boardId = searchParams.get('id')

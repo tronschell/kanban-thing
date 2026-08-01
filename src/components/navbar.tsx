@@ -24,22 +24,25 @@ import { Card, Column } from '@/types'
 
 interface NavbarProps {
   boardId?: string
+  /** Renders the board name and expiry only: no Create, terminal, share or board menu. */
+  readOnly?: boolean
   setBoardCards?: React.Dispatch<React.SetStateAction<Card[]>>
   setBacklogCards?: React.Dispatch<React.SetStateAction<Card[]>>
   backlogColumnId?: string | null
-  columns: Column[]
-  setColumns: React.Dispatch<React.SetStateAction<Column[]>>
-  onError: (message: string) => void
+  columns?: Column[]
+  setColumns?: React.Dispatch<React.SetStateAction<Column[]>>
+  onError?: (message: string) => void
 }
 
 type Modal = 'create' | 'terminal' | 'rename' | 'password' | 'delete' | 'appearance' | null
 
 export default function Navbar({
   boardId,
+  readOnly,
   setBoardCards,
   setBacklogCards,
   backlogColumnId,
-  columns,
+  columns = [],
   setColumns,
   onError,
 }: NavbarProps) {
@@ -103,7 +106,7 @@ export default function Navbar({
 
     if (error || !newCard) {
       console.error('Error creating card:', error)
-      onError('Could not create that card.')
+      onError?.('Could not create that card.')
       return
     }
 
@@ -124,11 +127,11 @@ export default function Navbar({
 
     if (error || !newColumn) {
       console.error('Error creating column:', error)
-      onError('Could not create that column.')
+      onError?.('Could not create that column.')
       return
     }
 
-    setColumns((prev) => [...prev, newColumn])
+    setColumns?.((prev) => [...prev, newColumn])
   }
 
   const closeModal = () => setOpenModal(null)
@@ -156,31 +159,35 @@ export default function Navbar({
                   <BoardExpirationTimer expiresAt={expiresAt} />
                 </span>
               )}
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/boards">
-                  <LibraryBig />
-                  Boards
-                </Link>
-              </Button>
-              <ShareLink boardId={boardId} />
-              <IconButton
-                label="Open terminal"
-                size="sm"
-                icon={<TerminalIcon />}
-                onClick={() => setOpenModal('terminal')}
-              />
-              <Button variant="primary" size="sm" onClick={() => setOpenModal('create')}>
-                <Plus />
-                Create
-              </Button>
-              <BoardMenu
-                onAppearance={() => setOpenModal('appearance')}
-                onRename={() => setOpenModal('rename')}
-                onSetPassword={() => setOpenModal('password')}
-                onExportJson={() => exportBoardAsJson(boardId)}
-                onExportCsv={() => exportBoardAsCsv(boardId)}
-                onDelete={() => setOpenModal('delete')}
-              />
+              {!readOnly && (
+                <>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href="/boards">
+                      <LibraryBig />
+                      Boards
+                    </Link>
+                  </Button>
+                  <ShareLink boardId={boardId} />
+                  <IconButton
+                    label="Open terminal"
+                    size="sm"
+                    icon={<TerminalIcon />}
+                    onClick={() => setOpenModal('terminal')}
+                  />
+                  <Button variant="primary" size="sm" onClick={() => setOpenModal('create')}>
+                    <Plus />
+                    Create
+                  </Button>
+                  <BoardMenu
+                    onAppearance={() => setOpenModal('appearance')}
+                    onRename={() => setOpenModal('rename')}
+                    onSetPassword={() => setOpenModal('password')}
+                    onExportJson={() => exportBoardAsJson(boardId)}
+                    onExportCsv={() => exportBoardAsCsv(boardId)}
+                    onDelete={() => setOpenModal('delete')}
+                  />
+                </>
+              )}
             </div>
           </>
         )}
@@ -188,7 +195,7 @@ export default function Navbar({
 
       <ThemePicker open={openModal === 'appearance'} onClose={closeModal} />
 
-      {boardId && (
+      {boardId && !readOnly && (
         <>
           <CreateModal
             isOpen={openModal === 'create'}
