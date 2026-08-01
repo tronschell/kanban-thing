@@ -18,6 +18,7 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { Plus, X } from 'lucide-react'
 import { Backlog, CalendarView, KanbanBoard, Navbar, TimelineView, ViewSwitcher } from '@/components'
+import CardDetail from '@/components/card-detail'
 import CardEditor from '@/components/card-editor'
 import ColumnEditor from '@/components/column-editor'
 import { CardPreview } from '@/components/sortable-card'
@@ -136,6 +137,7 @@ export default function BoardContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [activeCardId, setActiveCardId] = useState<string | null>(null)
+  const [detailCardId, setDetailCardId] = useState<string | null>(null)
   const [cardEditor, setCardEditor] = useState<{ columnId: string; card?: Card } | null>(null)
   const [deletingCard, setDeletingCard] = useState<Card | null>(null)
   const [columnEditor, setColumnEditor] = useState<{ column?: Column } | null>(null)
@@ -390,6 +392,20 @@ export default function BoardContent() {
     trackEvent('create_card', { card_id: created.id, column_id: editor.columnId })
   }
 
+  const saveCardDescription = async (card: Card, description: string) => {
+    const previous = cards
+    setCards(previous.map((item) => (item.id === card.id ? { ...item, description } : item)))
+
+    await enqueueWrite(async () => {
+      if (boardId) await ensureBoardPassword(supabase, boardId)
+      const { error } = await supabase.from('cards').update({ description }).eq('id', card.id)
+      if (error) {
+        setErrorMessage('Could not save that checklist.')
+        setCards(previous)
+      }
+    })
+  }
+
   const deleteCard = async (card: Card) => {
     setDeletingCard(null)
     const previous = cards
@@ -540,9 +556,12 @@ export default function BoardContent() {
   }
 
   const activeCard = cards.find((card) => card.id === activeCardId)
+  const detailCard = cards.find((card) => card.id === detailCardId)
+  const openCardEditor = (card: Card) => setCardEditor({ columnId: card.column_id, card })
   const cardActions = {
     moveTargets,
-    onEditCard: (card: Card) => setCardEditor({ columnId: card.column_id, card }),
+    onOpenCard: (card: Card) => setDetailCardId(card.id),
+    onEditCard: openCardEditor,
     onDeleteCard: setDeletingCard,
     onMoveCard: moveCardToColumn,
     onAddCard: (columnId: string) => setCardEditor({ columnId }),
@@ -614,6 +633,23 @@ export default function BoardContent() {
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
           <TimelineView boardId={boardId} />
         </div>
+      )}
+
+      {detailCard && (
+        <CardDetail
+          card={detailCard}
+          columnName={nameOfColumn(detailCard.column_id)}
+          onClose={() => setDetailCardId(null)}
+          onEdit={(card) => {
+            setDetailCardId(null)
+            openCardEditor(card)
+          }}
+          onDelete={(card) => {
+            setDetailCardId(null)
+            setDeletingCard(card)
+          }}
+          onSaveDescription={saveCardDescription}
+        />
       )}
 
       {cardEditor && (
