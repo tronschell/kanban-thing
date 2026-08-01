@@ -1,24 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, X, Plus } from 'lucide-react'
+import { Ban } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
-import { Modal } from '@/components/ui'
+import { Button, IconButton, Input, Modal, ModalFooter, Textarea } from '@/components/ui'
+import DueDatePicker from '@/components/due-date-picker'
 import { createClient } from '@/lib/supabase/client'
-
-const DEFAULT_COLORS = [
-  '#ef4444', // red
-  '#f97316', // orange
-  '#eab308', // yellow
-  '#22c55e', // green
-  '#3b82f6', // blue
-]
-
-interface Tag {
-  id: string
-  name: string
-  color: string | null
-}
+import { dayToDueDate, dueDateToDay } from '@/lib/date-utils'
+import { ensureBoardPassword } from '@/lib/board-writes'
+import { LABEL_COLORS, LABEL_COLOR_NAMES } from '@/lib/colors'
+import { cn } from '@/lib/utils'
 
 interface CardEditorProps {
   isOpen: boolean
@@ -28,7 +19,6 @@ interface CardEditorProps {
     description: string
     color: string | null
     due_date: string | null
-    tags: string[]
   }) => void
   columnName?: string
   initialData?: {
@@ -36,33 +26,9 @@ interface CardEditorProps {
     description: string
     color: string | null
     due_date: string | null
-    tags?: string[]
   }
-  availableTags?: Tag[]
-  onCreateTag?: (name: string) => Promise<Tag>
   isEditing?: boolean
   boardId?: string
-}
-
-function formatDateForInput(dateString: string | null): string {
-  if (!dateString) return ''
-  return new Date(dateString).toISOString().split('T')[0]
-}
-
-const ensureBoardPassword = async (supabase: any, boardId: string) => {
-  const storedPassword = localStorage.getItem(`board_password_${boardId}`)
-  if (!storedPassword) return false
-
-  try {
-    await supabase.rpc('verify_and_set_board_password', {
-      board_id_param: boardId,
-      password_attempt: storedPassword
-    })
-    return true
-  } catch (error) {
-    console.error('Error setting board password:', error)
-    return false
-  }
 }
 
 export default function CardEditor({
@@ -71,65 +37,48 @@ export default function CardEditor({
   onSave,
   columnName,
   initialData,
-  availableTags = [],
-  onCreateTag,
   isEditing,
   boardId,
 }: CardEditorProps) {
-  const [title, setTitle] = useState(initialData?.title || '')
-  const [description, setDescription] = useState(initialData?.description || '')
-  const [color, setColor] = useState(initialData?.color || '')
-  const [dueDate, setDueDate] = useState(formatDateForInput(initialData?.due_date))
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [color, setColor] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [isPreview, setIsPreview] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [selectedTags, setSelectedTags] = useState<string[]>(initialData?.tags || [])
-  const [newTagName, setNewTagName] = useState('')
+  const [titleError, setTitleError] = useState('')
   const supabase = createClient()
 
+  // initialData is rebuilt by the parent on every render, so opening is the only safe trigger.
   useEffect(() => {
-    if (isOpen) {
-      setTitle(initialData?.title || '')
-      setDescription(initialData?.description || '')
-      setColor(initialData?.color || '')
-      setDueDate(formatDateForInput(initialData?.due_date))
-      setIsPreview(false)
-      setSelectedTags(initialData?.tags || [])
-      setNewTagName('')
-    }
-  }, [isOpen, initialData])
+    if (!isOpen) return
 
-  const handleAddTag = async () => {
-    if (!newTagName.trim() || !onCreateTag) return
-
-    try {
-      const newTag = await onCreateTag(newTagName.trim())
-      setSelectedTags(prev => [...prev, newTag.id])
-      setNewTagName('')
-    } catch (error) {
-      console.error('Failed to create tag:', error)
-    }
-  }
-
-  const handleRemoveTag = (tagId: string) => {
-    setSelectedTags(prev => prev.filter(id => id !== tagId))
-  }
+    setTitle(initialData?.title || '')
+    setDescription(initialData?.description || '')
+    setColor(initialData?.color || '')
+    setDueDate(initialData?.due_date ? dueDateToDay(initialData.due_date) : '')
+    setIsPreview(false)
+    setTitleError('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!title.trim()) {
+      setTitleError('Title is required')
+      return
+    }
+
     setIsSaving(true)
-    
     try {
-      // Ensure password is set before saving
-      if (boardId) {
-        await ensureBoardPassword(supabase, boardId)
-      }
+      if (boardId) await ensureBoardPassword(supabase, boardId)
 
       await onSave({
-        title,
+        title: title.trim(),
         description,
         color: color || null,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        tags: selectedTags,
+        due_date: dueDate ? dayToDueDate(dueDate) : null,
       })
       onClose()
     } catch (error) {
@@ -139,175 +88,119 @@ export default function CardEditor({
     }
   }
 
+  const modalTitle = isEditing ? 'Edit card' : columnName ? `Add card to ${columnName}` : 'Add card'
+
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={onClose} 
-      title={isEditing ? 'Edit Card' : columnName ? `Add Card to ${columnName}` : 'Add Card'}
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Title</label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full p-2 border rounded dark:border-gray-700 dark:bg-gray-900"
-            required
-            autoFocus
-          />
-        </div>
-
-        <div>
-          <div className="flex justify-between items-center mb-1">
-            <label className="block text-sm font-medium">Description</label>
-            <button
-              type="button"
-              onClick={() => setIsPreview(!isPreview)}
-              className="text-sm text-blue-500 hover:text-blue-600"
-            >
-              {isPreview ? 'Edit' : 'Preview'}
-            </button>
+    <Modal open={isOpen} onClose={onClose} title={modalTitle} size="lg">
+      <form onSubmit={handleSubmit}>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="card-title" className="block text-xs font-medium text-muted mb-1.5">
+              Title
+            </label>
+            <Input
+              id="card-title"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value)
+                if (titleError) setTitleError('')
+              }}
+              placeholder="Card title"
+              aria-invalid={Boolean(titleError)}
+              aria-describedby="card-title-error"
+              autoFocus
+            />
+            <p id="card-title-error" role="alert" className="mt-1 min-h-4 text-xs text-danger">
+              {titleError}
+            </p>
           </div>
-          {isPreview ? (
-            <div className="prose dark:prose-invert max-w-none p-2 border rounded dark:border-gray-700 min-h-[100px]">
-              <ReactMarkdown>{description}</ReactMarkdown>
+
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label htmlFor="card-description" className="block text-xs font-medium text-muted">
+                Description
+              </label>
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto px-0"
+                onClick={() => setIsPreview(!isPreview)}
+              >
+                {isPreview ? 'Edit' : 'Preview'}
+              </Button>
             </div>
-          ) : (
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full p-2 border rounded dark:border-gray-700 dark:bg-gray-900 min-h-[100px]"
-              placeholder="Supports markdown formatting"
-            />
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Color</label>
-          <div className="flex gap-2 mb-2">
-            {DEFAULT_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                className={`w-6 h-6 rounded-full ${
-                  color === c ? 'ring-2 ring-offset-2 bg-gray-100' : ''
-                }`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
-          </div>
-          <input
-            type="text"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="w-full p-2 border rounded dark:border-gray-700 dark:bg-gray-900"
-            placeholder="Custom color (hex)"
-            pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Due Date</label>
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className="w-full p-2 border rounded dark:border-gray-700 dark:bg-gray-900"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Tags</label>
-          <div className="flex flex-wrap gap-2 mb-2">
-            {selectedTags.map(tagId => {
-              const tag = availableTags.find(t => t.id === tagId)
-              if (!tag) return null
-              
-              return (
-                <div 
-                  key={tag.id}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-sm"
-                  style={{ 
-                    backgroundColor: tag.color || '#e5e7eb',
-                    color: tag.color ? 'white' : 'black'
-                  }}
-                >
-                  {tag.name}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(tag.id)}
-                    className="p-0.5 hover:bg-black/10 rounded-full"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-          
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newTagName}
-              onChange={(e) => setNewTagName(e.target.value)}
-              className="flex-1 p-2 border rounded dark:border-gray-700 dark:bg-gray-900"
-              placeholder="Add new tag"
-            />
-            <button
-              type="button"
-              onClick={handleAddTag}
-              disabled={!newTagName.trim()}
-              className="px-3 py-2 border rounded hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-          
-          {availableTags.length > 0 && (
-            <div className="mt-2">
-              <div className="text-sm text-gray-500 mb-1">Available tags:</div>
-              <div className="flex flex-wrap gap-1">
-                {availableTags
-                  .filter(tag => !selectedTags.includes(tag.id))
-                  .map(tag => (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => setSelectedTags(prev => [...prev, tag.id])}
-                      className="px-2 py-1 rounded-full text-sm"
-                      style={{ 
-                        backgroundColor: tag.color || '#e5e7eb',
-                        color: tag.color ? 'white' : 'black'
-                      }}
-                    >
-                      {tag.name}
-                    </button>
-                  ))}
+            {isPreview ? (
+              <div className="prose min-h-24 max-w-none rounded-control border border-subtle bg-surface px-2.5 py-2 text-sm">
+                <ReactMarkdown>{description}</ReactMarkdown>
               </div>
+            ) : (
+              <Textarea
+                id="card-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Supports markdown formatting"
+              />
+            )}
+          </div>
+
+          <div>
+            <span className="block text-xs font-medium text-muted mb-1.5">Colour</span>
+            <div role="radiogroup" aria-label="Card colour" className="flex items-center gap-1">
+              <IconButton
+                role="radio"
+                aria-checked={color === ''}
+                label="No colour"
+                size="sm"
+                onClick={() => setColor('')}
+                className={cn(color === '' && 'bg-surface-active')}
+                icon={<Ban />}
+              />
+              {LABEL_COLORS.map((swatch) => (
+                <IconButton
+                  key={swatch}
+                  role="radio"
+                  aria-checked={color === swatch}
+                  label={LABEL_COLOR_NAMES[swatch]}
+                  size="sm"
+                  onClick={() => setColor(swatch)}
+                  className={cn(color === swatch && 'bg-surface-active')}
+                  icon={
+                    <span
+                      className="size-3.5 rounded-full"
+                      style={{ backgroundColor: swatch }}
+                    />
+                  }
+                />
+              ))}
             </div>
-          )}
+            <Input
+              id="card-color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="mt-1.5"
+              placeholder="Custom colour, e.g. #30a46c. Leave empty for none"
+              pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="card-due-date" className="block text-xs font-medium text-muted mb-1.5">
+              Due date
+            </label>
+            <DueDatePicker id="card-due-date" value={dueDate} onChange={setDueDate} />
+          </div>
+
         </div>
 
-        <div className="flex justify-end gap-2 pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm border rounded hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700 font-medium"
-            disabled={isSaving}
-          >
+        <ModalFooter>
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             Cancel
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 text-sm bg-white text-gray-900 rounded hover:bg-gray-300 disabled:opacity-50 font-medium"
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving...' : 'Save Card'}
-          </button>
-        </div>
+          </Button>
+          <Button type="submit" variant="primary" disabled={isSaving}>
+            {isSaving ? 'Saving' : 'Save card'}
+          </Button>
+        </ModalFooter>
       </form>
     </Modal>
   )
-} 
+}

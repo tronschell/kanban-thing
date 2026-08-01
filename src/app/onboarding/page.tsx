@@ -1,21 +1,22 @@
-'use client'
+import { Suspense } from "react"
+import type { Metadata } from "next"
+import { generateMetadata } from "@/lib/metadata"
+import { UserOnboarding } from "@/components"
+import { Spinner } from "@/components/ui"
 
-import { Suspense } from 'react'
-import { UserOnboarding } from '@/components'
-import { LoadingSpinner } from '@/components/ui'
-import { motion } from "framer-motion"
+export const metadata: Metadata = generateMetadata({
+  title: "Create a Board - KanbanThing",
+  description:
+    "Create a free kanban board in seconds. Name it, set a password, and share the link. No sign-up required.",
+  path: "/onboarding",
+})
 
 export default function OnboardingPage() {
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -100 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      className="min-h-screen flex flex-col bg-gray-950"
-    >
-      <Suspense fallback={<LoadingSpinner />}>
+    <main className="flex min-h-screen items-center justify-center bg-canvas px-6 py-16">
+      <Suspense fallback={<Spinner size="lg" />}>
         <UserOnboarding />
       </Suspense>
-    </motion.div>
+    </main>
   )
-} 
+}

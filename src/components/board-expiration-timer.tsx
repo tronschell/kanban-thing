@@ -1,53 +1,36 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Badge } from '@/components/ui'
 
-interface BoardExpirationTimerProps {
-  expiresAt: string
+const formatTimeLeft = (expiresAt: string) => {
+  const remaining = new Date(expiresAt).getTime() - Date.now()
+  if (remaining <= 0) return 'Expired'
+
+  const days = Math.floor(remaining / 86400000)
+  const hours = Math.floor((remaining % 86400000) / 3600000)
+  return `${days}d ${hours}h`
 }
 
-export function BoardExpirationTimer({ expiresAt }: BoardExpirationTimerProps) {
-  const [timeLeft, setTimeLeft] = useState<string>('')
+export function BoardExpirationTimer({ expiresAt }: { expiresAt: string }) {
+  const [timeLeft, setTimeLeft] = useState('')
 
   useEffect(() => {
-    const calculateTimeLeft = () => {
-      const now = new Date().getTime()
-      const expirationDate = new Date(expiresAt).getTime()
-      const difference = expirationDate - now
-
-      if (difference <= 0) {
-        return 'Expired'
-      }
-
-      const days = Math.floor(difference / (1000 * 60 * 60 * 24))
-      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-
-      return `${days}d ${hours}h`
-    }
-
-    setTimeLeft(calculateTimeLeft())
-    const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft())
-    }, 1000 * 60) // Update every minute
-
+    setTimeLeft(formatTimeLeft(expiresAt))
+    const timer = setInterval(() => setTimeLeft(formatTimeLeft(expiresAt)), 60000)
     return () => clearInterval(timer)
   }, [expiresAt])
 
+  if (!timeLeft) return null
+
+  if (timeLeft === 'Expired') {
+    return <Badge variant="danger">Expired</Badge>
+  }
+
   return (
-    <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white/50 dark:bg-gray-800/50 
-                    border border-gray-200/50 dark:border-gray-700/50 text-xs">
-      <span className="text-gray-500 dark:text-gray-400 hidden sm:inline">
-        Expires:
-      </span>
-      <span className={`
-        font-medium
-        ${timeLeft === 'Expired' 
-          ? 'text-red-500 dark:text-red-400' 
-          : 'text-gray-700 dark:text-gray-200'
-        }
-      `}>
-        {timeLeft}
-      </span>
-    </div>
+    <Badge>
+      <span className="text-subtle">Expires in</span>
+      <span className="font-mono tabular-nums">{timeLeft}</span>
+    </Badge>
   )
 }

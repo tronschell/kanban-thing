@@ -1,507 +1,407 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { Icon } from "@iconify/react";
-import { siBluesky } from 'simple-icons';
-import { UserOnboarding } from "@/components";
-import { GradientBackground } from "@/components/ui/gradient-background";
-import { PreviewCard } from "@/components/ui/preview-card";
-import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react"
+import Link from "next/link"
+import { motion, useReducedMotion } from "framer-motion"
+import {
+  CalendarRange,
+  Columns3,
+  Link2,
+  Lock,
+  MousePointerClick,
+  Timer,
+} from "lucide-react"
+import { siBluesky, siX } from "simple-icons"
+import { Button } from "@/components/ui"
+import { readLibrary } from "@/lib/board-library"
 
-// Add this type
-type Stats = {
-  boardsCreated: number;
-  cardsCreated: number;
-  cardsMoved: number;
-};
-
-// First, add this animation variant near your other variants at the top
-const statsVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      duration: 0.5,
-      ease: "easeOut",
-      delay: 0.4,
-    },
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": ["SoftwareApplication", "WebApplication"],
+  name: "KanbanThing",
+  applicationCategory: "ProductivityApplication",
+  operatingSystem: "Any",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
   },
-};
-
-// Add this component for the structured data
-function KanbanStructuredData() {
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{
-        __html: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": ["SoftwareApplication", "WebApplication"],
-          "name": "KanbanThing",
-          "applicationCategory": "ProductivityApplication",
-          "operatingSystem": "Any",
-          "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
-          },
-          "description": "A free, no-signup Kanban board application/tool built to make you extraordinarily productive. The easiest way to organize your work.",
-          "featureList": [
-            "No sign-up required",
-            "Always free",
-            "2-month board lifespan",
-            "Real-time collaboration",
-            "Drag and drop interface"
-          ],
-          "screenshot": "@Screenshot.png",
-          "author": {
-            "@type": "Person",
-            "name": "Tron Schell",
-            "sameAs": "https://www.linkedin.com/in/tron-schell-aa0856181/"
-          },
-          "sameAs": [
-            "https://bsky.app/profile/kanbanthing.bsky.social",
-            "https://twitter.com/kanbanthing"
-          ]
-        })
-      }}
-    />
-  );
+  description:
+    "A free, no-signup Kanban board application/tool built to make you extraordinarily productive. The easiest way to organize your work.",
+  featureList: [
+    "No sign-up required",
+    "Always free",
+    "2-month board lifespan",
+    "Shareable board links",
+    "Drag and drop interface",
+  ],
+  author: {
+    "@type": "Person",
+    name: "Tron Schell",
+    sameAs: "https://www.linkedin.com/in/tron-schell-aa0856181/",
+  },
+  sameAs: [
+    "https://bsky.app/profile/kanbanthing.bsky.social",
+    "https://twitter.com/kanbanthing",
+  ],
 }
 
 export default function Home() {
-  const router = useRouter();
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.3,
-        delayChildren: 0.1,
-      },
-    },
-  };
+  return (
+    <div className="flex min-h-screen flex-col bg-canvas">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <SiteHeader />
+      <main className="flex-1">
+        <Hero />
+        <HowItWorks />
+        <Features />
+        <ClosingCta />
+      </main>
+      <SiteFooter />
+    </div>
+  )
+}
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: -20 },
-    show: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.5,
-        ease: "easeOut",
-      },
-    },
-  };
-
-  const featureCardsVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.1, // Start after app preview
-      },
-    },
-  };
-
-  const featureCardVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.2,
-        ease: "easeOut",
-      },
-    },
-  };
-
-  const handleCreateBoard = async (e: React.MouseEvent) => {
-    e.preventDefault();
-
-    // First animate the page out
-    const container = document.getElementById("main-container");
-    if (container) {
-      await container.animate(
-        [
-          { opacity: 1, transform: "translateX(0)" },
-          { opacity: 0, transform: "translateX(100px)" },
-        ],
-        {
-          duration: 300,
-          easing: "ease-out",
-          fill: "forwards",
-        }
-      ).finished;
-    }
-
-    // Then navigate
-    router.push("/onboarding");
-  };
-
-  const StatsDisplay = () => {
-    const [stats, setStats] = useState<Stats>({ boardsCreated: 0, cardsCreated: 0, cardsMoved: 0 });
-
-    useEffect(() => {
-      const fetchStats = async () => {
-        try {
-          const response = await fetch("/api/stats");
-          const data = await response.json();
-          setTimeout(() => setStats(data), 1000);
-        } catch (error) {
-          console.error("Failed to fetch stats:", error);
-        }
-      };
-
-      fetchStats();
-    }, []);
-
-    const removeLeadingZeros = (str: string) => str.replace(/^0+/, '');
-
-    return (
-      <motion.p
-        variants={statsVariants}
-        className="text-sm md:text-base text-white/60 mb-8 md:mb-12"
-      >
-        <motion.span
-          key={`boards-${stats.boardsCreated}`}
-          animate={{ opacity: 1 }}
-          initial={{ opacity: 0.4 }}
-          transition={{ duration: 0.5 }}
-        >
-          {removeLeadingZeros(stats.boardsCreated.toString())}
-        </motion.span>
-        {" boards created • "}
-        <motion.span
-          key={`cards-${stats.cardsCreated}`}
-          animate={{ opacity: 1 }}
-          initial={{ opacity: 0.4 }}
-          transition={{ duration: 0.5 }}
-        >
-          {removeLeadingZeros(stats.cardsCreated.toString())}
-        </motion.span>
-        {" cards created • "}
-        <motion.span
-          key={`moved-${stats.cardsMoved}`}
-          animate={{ opacity: 1 }}
-          initial={{ opacity: 0.4 }}
-          transition={{ duration: 0.5 }}
-        >
-          {removeLeadingZeros(stats.cardsMoved.toString())}
-        </motion.span>
-        {" cards moved"}
-      </motion.p>
-    );
-  };
+function Reveal({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  const reduceMotion = useReducedMotion()
 
   return (
-    <>
-      <KanbanStructuredData />
-      <div className="min-h-screen flex flex-col bg-gray-950 overflow-x-hidden">
-        <GradientBackground />
+    <motion.div
+      className={className}
+      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-64px" }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </motion.div>
+  )
+}
 
-        {/* Hero Section */}
-        <motion.main
-          id="main-container"
-          className="relative flex-1 flex flex-col p-4 md:p-20"
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
+function SiteHeader() {
+  const [savedBoards, setSavedBoards] = useState(0)
+
+  useEffect(() => setSavedBoards(readLibrary().entries.length), [])
+
+  return (
+    <header className="border-b border-subtle">
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-4">
+        <Link
+          href="/"
+          className="focus-ring rounded text-sm font-semibold text-fg"
         >
-          <div className="max-w-5xl mx-auto text-center">
-            <div className="relative">
-              <motion.h1
-                variants={itemVariants}
-                className="text-5xl md:text-8xl font-bold text-white mb-6 md:mb-8 tracking-tight"
-              >
-                KanbanThing
-              </motion.h1>
-            </div>
-
-            <motion.p
-              variants={itemVariants}
-              className="text-lg md:text-2xl text-white/90 mb-4 max-w-3xl mx-auto leading-relaxed px-2"
+          KanbanThing
+        </Link>
+        <nav aria-label="Main" className="flex items-center gap-4">
+          {savedBoards > 0 && (
+            <Link
+              href="/boards"
+              className="focus-ring rounded text-sm text-muted transition-colors duration-fast hover:text-fg"
             >
-              Built to make you extraordinarily productive.
-              <br className="hidden sm:block" />
-              The easiest tool to organize your work.
-            </motion.p>
-
-            <StatsDisplay />
-
-            <motion.div
-              variants={itemVariants}
-              className="flex flex-col sm:flex-row gap-4 justify-center px-1"
-            >
-              <button
-                onClick={handleCreateBoard}
-                className="inline-flex items-center justify-center px-6 py-3 md:px-8 md:py-4 text-base md:text-lg font-medium text-gray-900 bg-white rounded-xl hover:bg-white/90 transition-colors shadow-lg backdrop-blur-sm"
-              >
-                Create New Board
-                <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
-              </button>
-            </motion.div>
-
-            {/* App Preview */}
-            <motion.div
-              variants={itemVariants}
-              className="mt-8 sm:mt-20 relative px-1"
-            >
-              <PreviewCard>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-2xl" />
-                <div className="relative bg-gray-900/40 backdrop-blur border border-white/10 rounded-2xl p-2 sm:p-4 shadow-2xl">
-                  {/* Window Controls */}
-                  <div className="flex items-center gap-1 sm:gap-2 mb-2 sm:mb-4 px-2 sm:px-1">
-                    <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-red-500" />
-                    <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-yellow-500" />
-                    <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-green-500" />
-                  </div>
-
-                  {/* App Content Preview */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4">
-                    <div className="col-span-full bg-gray-800/50 rounded-lg p-2 sm:p-4 h-[200px] sm:h-[300px]">
-                      {/* Main content area */}
-                      <div className="flex gap-2 sm:gap-4 h-full">
-                        {/* Todo Column */}
-                        <div className="flex-1 bg-gray-700/50 rounded-lg p-2 sm:p-3">
-                          <div className="text-white/80 text-xs sm:text-sm font-medium mb-2 sm:mb-3">
-                            To Do
-                          </div>
-                          <div className="space-y-1 sm:space-y-2">
-                            <div className="bg-gray-800/70 p-1.5 sm:p-2 rounded-md">
-                              <div className="h-1.5 sm:h-2 bg-purple-400/30 w-12 rounded mb-1 sm:mb-2" />
-                              <div className="h-2 sm:h-3 bg-gray-600/50 w-2/3 rounded" />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* In Progress Column */}
-                        <div className="flex-1 bg-gray-700/50 rounded-lg p-2 sm:p-3">
-                          <div className="text-white/80 text-xs sm:text-sm font-medium mb-2 sm:mb-3">
-                            In Progress
-                          </div>
-                          <div className="space-y-1 sm:space-y-2">
-                            <div className="bg-gray-800/70 p-1.5 sm:p-2 rounded-md">
-                              <div className="h-1.5 sm:h-2 bg-yellow-400/30 w-12 rounded mb-1 sm:mb-2" />
-                              <div className="h-2 sm:h-3 bg-gray-600/50 w-4/5 rounded" />
-                            </div>
-                            <div className="bg-gray-800/70 p-1.5 sm:p-2 rounded-md">
-                              <div className="h-1.5 sm:h-2 bg-blue-400/30 w-12 rounded mb-1 sm:mb-2" />
-                              <div className="h-2 sm:h-3 bg-gray-600/50 w-3/4 rounded" />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Done Column */}
-                        <div className="flex-1 bg-gray-700/50 rounded-lg p-2 sm:p-3">
-                          <div className="text-white/80 text-xs sm:text-sm font-medium mb-2 sm:mb-3">
-                            Done
-                          </div>
-                          <div className="space-y-1 sm:space-y-2">
-                            <div className="bg-gray-800/70 p-1.5 sm:p-2 rounded-md">
-                              <div className="h-1.5 sm:h-2 bg-pink-400/30 w-12 rounded mb-1 sm:mb-2" />
-                              <div className="h-2 sm:h-3 bg-gray-600/50 w-3/5 rounded" />
-                            </div>
-                            <div className="bg-gray-800/70 p-1.5 sm:p-2 rounded-md">
-                              <div className="h-1.5 sm:h-2 bg-orange-400/30 w-12 rounded mb-1 sm:mb-2" />
-                              <div className="h-2 sm:h-3 bg-gray-600/50 w-2/3 rounded" />
-                            </div>
-                            <div className="bg-gray-800/70 p-1.5 sm:p-2 rounded-md">
-                              <div className="h-1.5 sm:h-2 bg-green-400/30 w-12 rounded mb-1 sm:mb-2" />
-                              <div className="h-2 sm:h-3 bg-gray-600/50 w-1/2 rounded" />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Sidebar */}
-                    <div className="col-span-full bg-gray-800/50 rounded-lg p-2 sm:p-4">
-                      <div className="space-y-2 sm:space-y-3">
-                        <div className="h-3 sm:h-4 bg-gray-700/50 rounded w-3/4" />
-                        <div className="h-3 sm:h-4 bg-gray-700/50 rounded w-1/2" />
-                        <div className="h-3 sm:h-4 bg-gray-700/50 rounded w-2/3" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </PreviewCard>
-            </motion.div>
-
-            {/* Features Section */}
-            <motion.div
-              variants={featureCardsVariants}
-              className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 mt-12 md:mt-20 px-1"
-            >
-              {/* No Sign-up Card */}
-              <motion.div
-                variants={featureCardVariants}
-                className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 shrink-0 rounded-xl bg-purple-500/10 flex items-center justify-center">
-                      <svg
-                        className="w-5 h-5 text-purple-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-                        />
-                      </svg>
-                    </div>
-                    <h3 className="text-xl font-semibold text-white">
-                      No Sign-up Required
-                    </h3>
-                  </div>
-                  <p className="text-white/80 text-sm leading-relaxed text-left">
-                    Start organizing instantly. Create a board and share the link
-                    with your team. No email required.
-                  </p>
-                </div>
-              </motion.div>
-              {/* Always Free Card */}
-              <motion.div
-                variants={featureCardVariants}
-                className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 shrink-0 rounded-xl bg-green-500/10 flex items-center justify-center">
-                      <svg
-                        className="w-5 h-5 text-green-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                    <h3 className="text-xl font-semibold text-white">
-                      Always Free
-                    </h3>
-                  </div>
-                  <p className="text-white/80 text-sm leading-relaxed text-left">
-                    KanbanThing is completely free to use and will always remain
-                    free.
-                  </p>
-                </div>
-              </motion.div>
-              {/* Board Lifespan Card */}
-              <motion.div
-                variants={featureCardVariants}
-                className="group relative overflow-hidden p-6 rounded-2xl bg-gray-900/40 backdrop-blur border border-white/10 transition-all duration-300 hover:bg-gray-900/50 hover:scale-[1.02]"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 shrink-0 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                      <svg
-                        className="w-5 h-5 text-blue-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                    <h3 className="text-xl font-semibold text-white">
-                      Board Lifespan
-                    </h3>
-                  </div>
-                  <p className="text-white/80 text-sm leading-relaxed text-left">
-                    Boards automatically expire after 2 months, keeping your
-                    workspace clean and focused on active projects.
-                  </p>
-                </div>
-              </motion.div>
-            </motion.div>
-          </div>
-        </motion.main>
-
-        {/* Footer */}
-        <footer className="relative py-4 md:py-6 text-center text-white/60 px-1">
-          <div className="flex flex-col gap-2">
-            <p>
-              Built by{" "}
-              <a
-                href="https://www.linkedin.com/in/tron-schell-aa0856181/"
-                className="text-blue-500"
-              >
-                Tron Schell
-              </a>
-            </p>
-            <div className="flex justify-center gap-4 text-sm">
-              <Link href="/about" className="hover:text-white transition-colors">
-                About
-              </Link>
-              <Link href="/terms" className="hover:text-white transition-colors">
-                Terms
-              </Link>
-              <Link
-                href="/privacy"
-                className="hover:text-white transition-colors"
-              >
-                Privacy
-              </Link>
-              <a
-                href="https://bsky.app/profile/kanbanthing.bsky.social"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-white transition-colors"
-              >
-                <svg
-                  role="img"
-                  viewBox="0 0 24 24"
-                  className="w-4 h-4 fill-current"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path d={siBluesky.path} />
-                </svg>
-              </a>
-              <a
-                href="https://twitter.com/kanbanthing"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-white transition-colors"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="w-4 h-4"
-                >
-                  <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z" />
-                </svg>
-              </a>
-            </div>
-          </div>
-        </footer>
+              My boards{" "}
+              <span className="font-mono tabular-nums text-subtle">({savedBoards})</span>
+            </Link>
+          )}
+          <Link
+            href="/about"
+            className="focus-ring rounded text-sm text-muted transition-colors duration-fast hover:text-fg"
+          >
+            About
+          </Link>
+          <Button asChild size="sm">
+            <Link href="/onboarding">Create board</Link>
+          </Button>
+        </nav>
       </div>
-    </>
-  );
+    </header>
+  )
+}
+
+function Hero() {
+  return (
+    <section className="mx-auto w-full max-w-4xl px-6 pb-16 pt-16 md:pt-24">
+      <h1 className="text-4xl font-semibold text-fg md:text-5xl">
+        A shared kanban board, without the sign-up
+      </h1>
+      <p className="mt-5 max-w-[62ch] text-md text-muted">
+        Give your board a name, pick a password, and you get a link. Send it to
+        anyone and they can open the same board and drag the same cards. No
+        account, no email, no install, no trial.
+      </p>
+      <div className="mt-8 flex flex-wrap items-center gap-3">
+        <Button asChild variant="primary" size="lg">
+          <Link href="/onboarding">Create a board</Link>
+        </Button>
+        <Button asChild variant="ghost" size="lg">
+          <Link href="/about">What it does</Link>
+        </Button>
+      </div>
+      <UsageCounts />
+    </section>
+  )
+}
+
+type Stats = {
+  boardsCreated: number
+  cardsCreated: number
+  cardsMoved: number
+}
+
+function UsageCounts() {
+  const [stats, setStats] = useState<Stats | null>(null)
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((response) => response.json())
+      .then((data) => {
+        if (typeof data.boardsCreated === "number") setStats(data)
+      })
+      .catch(() => {})
+  }, [])
+
+  if (!stats) return null
+
+  return (
+    <p className="mt-8 text-xs text-subtle">
+      <Count value={stats.boardsCreated} /> boards created,{" "}
+      <Count value={stats.cardsCreated} /> cards written,{" "}
+      <Count value={stats.cardsMoved} /> cards moved so far.
+    </p>
+  )
+}
+
+function Count({ value }: { value: number }) {
+  return (
+    <span className="font-mono tabular-nums text-muted">
+      {value.toLocaleString()}
+    </span>
+  )
+}
+
+function HowItWorks() {
+  return (
+    <section aria-labelledby="how-it-works" className="border-t border-subtle">
+      <div className="mx-auto w-full max-w-4xl px-6 py-16">
+        <Reveal>
+          <h2
+            id="how-it-works"
+            className="text-2xl font-semibold text-fg md:text-3xl"
+          >
+            Three steps, one link
+          </h2>
+          <ol className="mt-8 divide-y divide-subtle border-y border-subtle">
+            <Step number={1} title="Name the board">
+              A board name and a password is the whole setup. Nothing is asked
+              of you that you would have to remember later.
+            </Step>
+            <Step number={2} title="Send the link">
+              Every board lives at its own address. Copy it out of the board
+              header and paste it wherever your team already talks.
+            </Step>
+            <Step number={3} title="Move cards">
+              To Do, In Progress and Done are there from the start. Rename them,
+              add columns, drag cards across, and keep going.
+            </Step>
+          </ol>
+        </Reveal>
+      </div>
+    </section>
+  )
+}
+
+function Step({
+  number,
+  title,
+  children,
+}: {
+  number: number
+  title: string
+  children: ReactNode
+}) {
+  return (
+    <li className="flex gap-4 py-5">
+      <span className="mt-0.5 font-mono text-2xs tabular-nums text-subtle">
+        {number}
+      </span>
+      <div>
+        <h3 className="text-md font-medium text-fg">{title}</h3>
+        <p className="mt-1 max-w-[62ch] text-sm text-muted">{children}</p>
+      </div>
+    </li>
+  )
+}
+
+function Features() {
+  return (
+    <section aria-labelledby="features" className="border-t border-subtle">
+      <div className="mx-auto w-full max-w-4xl px-6 py-16">
+        <Reveal>
+          <h2
+            id="features"
+            className="text-2xl font-semibold text-fg md:text-3xl"
+          >
+            Enough board to be useful, and no more
+          </h2>
+          <p className="mt-4 max-w-[62ch] text-md text-muted">
+            KanbanThing is a utility, not a platform. It does the handful of
+            things a board has to do and stays out of the way for the rest.
+          </p>
+          <dl className="mt-10 grid gap-8 sm:grid-cols-2">
+            <Feature icon={<Link2 />} title="Share by link">
+              Anyone holding the link and the password works on the same board.
+              There is nobody to invite and no seat to pay for.
+            </Feature>
+            <Feature icon={<MousePointerClick />} title="Drag and drop">
+              Move cards between columns by dragging, or move them from the card
+              menu when a pointer is not an option.
+            </Feature>
+            <Feature icon={<Columns3 />} title="Columns and a backlog">
+              Add, rename and reorder columns. Park everything that is not
+              scheduled yet in the backlog, the first panel on the board.
+            </Feature>
+            <Feature icon={<CalendarRange />} title="Calendar and timeline">
+              The same cards on a calendar by due date, or on a timeline by
+              most recent activity, when you need to see what lands when.
+            </Feature>
+            <Feature icon={<Lock />} title="Password on every board">
+              Boards are not listed or searchable, and the password is set at
+              creation, so a leaked link alone is not enough.
+            </Feature>
+            <Feature icon={<Timer />} title="Two month lifespan">
+              Boards are removed two months after they are created. Nothing
+              accumulates and there is no subscription to cancel.
+            </Feature>
+          </dl>
+        </Reveal>
+      </div>
+    </section>
+  )
+}
+
+function Feature({
+  icon,
+  title,
+  children,
+}: {
+  icon: ReactNode
+  title: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex gap-3">
+      <span
+        aria-hidden
+        className="flex size-8 shrink-0 items-center justify-center rounded-control border border-subtle bg-surface text-muted [&_svg]:size-4"
+      >
+        {icon}
+      </span>
+      <div>
+        <dt className="text-md font-medium text-fg">{title}</dt>
+        <dd className="mt-1 text-sm text-muted">{children}</dd>
+      </div>
+    </div>
+  )
+}
+
+function ClosingCta() {
+  return (
+    <section aria-labelledby="get-started" className="border-t border-subtle">
+      <div className="mx-auto w-full max-w-4xl px-6 py-16">
+        <Reveal className="rounded-panel border border-subtle bg-surface px-6 py-10 md:px-10">
+          <h2
+            id="get-started"
+            className="text-2xl font-semibold text-fg md:text-3xl"
+          >
+            Free, and it stays free
+          </h2>
+          <p className="mt-4 max-w-[62ch] text-md text-muted">
+            There is no paid tier to upgrade to and nothing to sign. Copy out
+            anything you want to keep before the two months are up.
+          </p>
+          <Button asChild variant="primary" size="lg" className="mt-8">
+            <Link href="/onboarding">Create a board</Link>
+          </Button>
+        </Reveal>
+      </div>
+    </section>
+  )
+}
+
+function SiteFooter() {
+  return (
+    <footer className="border-t border-subtle">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-6 py-8 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-subtle">
+          Built by{" "}
+          <a
+            href="https://www.linkedin.com/in/tron-schell-aa0856181/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="focus-ring rounded text-muted underline underline-offset-4 transition-colors duration-fast hover:text-fg"
+          >
+            Tron Schell
+          </a>
+        </p>
+        <nav aria-label="Footer" className="flex items-center gap-5">
+          <FooterLink href="/about">About</FooterLink>
+          <FooterLink href="/terms">Terms</FooterLink>
+          <FooterLink href="/privacy">Privacy</FooterLink>
+          <SocialLink
+            href="https://bsky.app/profile/kanbanthing.bsky.social"
+            label="KanbanThing on Bluesky"
+            path={siBluesky.path}
+          />
+          <SocialLink
+            href="https://twitter.com/kanbanthing"
+            label="KanbanThing on X"
+            path={siX.path}
+          />
+        </nav>
+      </div>
+    </footer>
+  )
+}
+
+function FooterLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="focus-ring rounded text-xs text-muted transition-colors duration-fast hover:text-fg"
+    >
+      {children}
+    </Link>
+  )
+}
+
+function SocialLink({
+  href,
+  label,
+  path,
+}: {
+  href: string
+  label: string
+  path: string
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
+      className="focus-ring rounded text-muted transition-colors duration-fast hover:text-fg"
+    >
+      <svg aria-hidden viewBox="0 0 24 24" className="size-4 fill-current">
+        <path d={path} />
+      </svg>
+    </a>
+  )
 }

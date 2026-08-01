@@ -8,9 +8,7 @@ declare global {
     gtag: (
       type: string,
       action: string,
-      data?: {
-        [key: string]: any;
-      }
+      data?: Record<string, unknown>
     ) => void;
   }
 }
@@ -28,7 +26,7 @@ export function useAnalytics() {
     }
   }, [pathname, searchParams]);
 
-  const trackEvent = (action: string, data?: { [key: string]: any }) => {
+  const trackEvent = (action: string, data?: Record<string, unknown>) => {
     window.gtag?.('event', action, data);
   };
 
