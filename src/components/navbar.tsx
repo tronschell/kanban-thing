@@ -18,6 +18,7 @@ import { ThemePicker } from '@/components/theme-picker'
 import { exportBoardAsCsv, exportBoardAsJson } from '@/components/navbar/board-export'
 import { runBoardCommand } from '@/components/navbar/board-commands'
 import { useBoardExpiration } from '@/hooks/use-board-expiration'
+import { numbered } from '@/components/board/dnd'
 import { createClient } from '@/lib/supabase/client'
 import { ensureBoardPassword } from '@/lib/board-writes'
 import { Card, Column } from '@/types'
@@ -111,6 +112,54 @@ export default function Navbar({
     setCards?.((prev) => [...prev, newCard])
   }
 
+  const handleCreateCards = async (columnId: string, titles: string[]) => {
+    if (!boardId) return
+    await ensureBoardPassword(supabase, boardId)
+
+    const { data: existing } = await supabase
+      .from('cards')
+      .select('*')
+      .eq('column_id', columnId)
+      .order('position')
+
+    const fresh = titles.map(
+      (title) =>
+        ({
+          id: crypto.randomUUID(),
+          column_id: columnId,
+          title,
+          description: null,
+          color: null,
+          due_date: null,
+        }) as Card
+    )
+
+    const rows = numbered([...((existing ?? []) as Card[]), ...fresh]).map((card) => ({
+      id: card.id,
+      column_id: card.column_id,
+      title: card.title,
+      description: card.description,
+      color: card.color,
+      due_date: card.due_date,
+      position: card.position,
+    }))
+
+    const { data: saved, error } = await supabase
+      .from('cards')
+      .upsert(rows, { onConflict: 'id' })
+      .select('*')
+
+    if (error || !saved) {
+      console.error('Error creating cards:', error)
+      onError('Could not add those cards.')
+      return
+    }
+
+    const column = (saved as Card[]).sort((a, b) => a.position - b.position)
+    const setCards = columnId === backlogColumnId ? setBacklogCards : setBoardCards
+    setCards?.((prev) => [...prev.filter((card) => card.column_id !== columnId), ...column])
+  }
+
   const handleCreateColumn = async (name: string) => {
     if (!boardId) return
     await ensureBoardPassword(supabase, boardId)
@@ -196,6 +245,7 @@ export default function Navbar({
             columns={columns}
             onCreateCard={handleCreateCard}
             onCreateColumn={handleCreateColumn}
+            onCreateCards={handleCreateCards}
           />
 
           <TerminalInterface
