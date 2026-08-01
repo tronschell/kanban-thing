@@ -18,6 +18,7 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { Plus, X } from 'lucide-react'
 import { Backlog, CalendarView, KanbanBoard, Navbar, TimelineView, ViewSwitcher } from '@/components'
+import BoardBrief from '@/components/board-brief'
 import CardEditor from '@/components/card-editor'
 import ColumnEditor from '@/components/column-editor'
 import { CardPreview } from '@/components/sortable-card'
@@ -563,6 +564,8 @@ export default function BoardContent() {
       <div className="px-3 py-2">
         <ViewSwitcher currentView={currentView} onViewChange={setCurrentView} boardId={boardId} />
       </div>
+
+      <BoardBrief boardId={boardId} />
 
       {errorMessage && (
         <div className="px-3 pb-2">
