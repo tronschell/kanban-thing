@@ -1,6 +1,6 @@
 import { alpha, isDarkSurface, isHex, mix, normalizeHex, readableOn } from './contrast'
 
-const THEME_STORAGE_KEY = 'kanbanthing.theme.v1'
+const THEME_STORAGE_KEY = 'kanbanthing.theme.v2'
 
 interface ThemeStructure {
   cardChrome: 'box' | 'rule' | 'ruled-card' | 'glyph-frame'
@@ -309,7 +309,7 @@ export function loadTheme(): ThemeState {
 
 export function saveTheme(state: ThemeState, vars: Vars) {
   try {
-    localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ version: 1, ...state, vars }))
+    localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ ...state, vars }))
   } catch {
     /* private mode, storage full: the theme still applies for this session */
   }

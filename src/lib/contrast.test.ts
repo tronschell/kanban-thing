@@ -1,8 +1,18 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { isHex, normalizeHex } from './contrast'
-import { PRESETS, previewColors, resolveVars } from './themes'
+import {
+  DEFAULT_PRESET_ID,
+  PRESETS,
+  presetById,
+  previewColors,
+  resolveVars,
+  saveTheme,
+  themeBootstrapScript,
+} from './themes'
 
 const preset = PRESETS[0]
+
+const runBootstrap = () => new Function(themeBootstrapScript())()
 
 describe('hex normalisation', () => {
   it('accepts a pasted hex without the hash', () => {
@@ -35,5 +45,40 @@ describe('theme variables', () => {
       canvas: '#1a1a1a',
       accent: '#3366ff',
     })
+  })
+})
+
+describe('theme bootstrap', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    document.documentElement.removeAttribute('style')
+  })
+
+  it('ignores pre-fix storage holding bare hex vars', () => {
+    localStorage.setItem(
+      'kanbanthing.theme.v1',
+      JSON.stringify({
+        version: 1,
+        presetId: 'duskcalm',
+        overrides: { canvas: '1a1a1a', fg: 'eeeeee' },
+        vars: { '--canvas': '1a1a1a', '--fg': 'eeeeee', '--surface': '#2f2f2f' },
+      })
+    )
+
+    runBootstrap()
+
+    expect(document.documentElement.getAttribute('style')).toBe(null)
+    expect(document.documentElement.getAttribute('data-theme')).toBe(DEFAULT_PRESET_ID)
+  })
+
+  it('applies vars saved by the current version', () => {
+    const state = { presetId: 'duskcalm', overrides: { canvas: '1a1a1a' } }
+    saveTheme(state, resolveVars(presetById(state.presetId), state.overrides))
+
+    runBootstrap()
+
+    const { style } = document.documentElement
+    expect(style.getPropertyValue('--canvas')).toBe('#1a1a1a')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('duskcalm')
   })
 })

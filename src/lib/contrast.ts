@@ -9,9 +9,7 @@ export function normalizeHex(value: string) {
 }
 
 function parseHex(hex: string): [number, number, number] {
-  const raw = hex.trim().replace('#', '')
-  const full = raw.length === 3 ? raw.replace(/./g, (c) => c + c) : raw
-  const int = Number.parseInt(full, 16)
+  const int = Number.parseInt(normalizeHex(hex).slice(1), 16)
   return [(int >> 16) & 255, (int >> 8) & 255, int & 255]
 }
 
