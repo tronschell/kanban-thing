@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button, Modal, ModalFooter, Select, Textarea } from '@/components/ui'
 
 const MAX_BULK_CARDS = 200
 const MAX_TITLE_LENGTH = 200
-const LIST_MARKER = /^(?:[-*+]\s+|\d+[.)]\s+)/
+const LIST_MARKER = /^(?:[-*+•–]|\d+[.)])(?:\s+|$)/
 const CHECKBOX = /^\[[ xX]\]\s+/
 
-export const parseCardTitles = (text: string) =>
+const parseCardTitles = (text: string) =>
   text
     .split('\n')
     .map((line) => line.trim().replace(LIST_MARKER, '').replace(CHECKBOX, '').trim())
@@ -28,12 +28,6 @@ export default function BulkAdd({ isOpen, onClose, columns, onSave }: BulkAddPro
   const [columnId, setColumnId] = useState(defaultColumnId)
   const [text, setText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-
-  useEffect(() => {
-    if (!isOpen) return
-    setColumnId(defaultColumnId)
-    setText('')
-  }, [isOpen, defaultColumnId])
 
   const parsed = parseCardTitles(text)
   const titles = parsed.slice(0, MAX_BULK_CARDS)

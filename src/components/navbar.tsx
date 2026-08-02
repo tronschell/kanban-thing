@@ -116,11 +116,17 @@ export default function Navbar({
     if (!boardId) return
     await ensureBoardPassword(supabase, boardId)
 
-    const { data: existing } = await supabase
+    const { data: existing, error: readError } = await supabase
       .from('cards')
       .select('*')
       .eq('column_id', columnId)
       .order('position')
+
+    if (readError) {
+      console.error('Error reading cards:', readError)
+      onError('Could not add those cards.')
+      throw readError
+    }
 
     const fresh = titles.map(
       (title) =>
@@ -152,7 +158,7 @@ export default function Navbar({
     if (error || !saved) {
       console.error('Error creating cards:', error)
       onError('Could not add those cards.')
-      return
+      throw error ?? new Error('Could not add those cards.')
     }
 
     const column = (saved as Card[]).sort((a, b) => a.position - b.position)
