@@ -58,9 +58,9 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <SiteHeader />
+      <CliBanner />
       <main className="flex-1">
         <Hero />
-        <CliBanner />
         <HowItWorks />
         <Appearances />
         <Features />

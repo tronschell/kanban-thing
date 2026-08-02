@@ -4,6 +4,8 @@ import Link from "next/link"
 import { generateMetadata } from "@/lib/metadata"
 import { Button } from "@/components/ui/button"
 import { CliStats } from "@/components/cli-stats"
+import { CliTable } from "@/components/cli-table"
+import { CopyButton } from "@/components/copy-button"
 
 export const metadata: Metadata = generateMetadata({
   title: "KanbanThing CLI - Drive a Kanban Board From the Terminal",
@@ -127,7 +129,7 @@ kanban mv "Write the spec" Done`}</Code>
         </Section>
 
         <Section title="Commands">
-          <Table heading="Command" rows={COMMANDS} />
+          <CliTable heading="Command" rows={COMMANDS} filterLabel="Filter commands" />
           <p className="mt-3 text-xs text-subtle">
             Every command runs against the board set by{" "}
             <code className="font-mono">use</code>, or the one named by{" "}
@@ -136,7 +138,7 @@ kanban mv "Write the spec" Done`}</Code>
         </Section>
 
         <Section title="Global flags">
-          <Table heading="Flag" rows={FLAGS} />
+          <CliTable heading="Flag" rows={FLAGS} />
         </Section>
 
         <Section title="For AI agents">
@@ -153,7 +155,7 @@ kanban mv "Write the spec" Done`}</Code>
 export KANBAN_PASSWORD=<board-password>
 kanban ls --json`}</Code>
           <p className="mt-6 text-md text-muted">Exit codes:</p>
-          <Table heading="Code" rows={EXIT_CODES} />
+          <CliTable heading="Code" rows={EXIT_CODES} />
         </Section>
 
         <Section title="Source">
@@ -196,45 +198,11 @@ function Section({
 
 function Code({ children }: { children: string }) {
   return (
-    <pre className="mt-4 overflow-x-auto rounded-panel border border-subtle bg-surface p-4 font-mono text-sm text-fg scrollbar-thin">
-      {children}
-    </pre>
-  )
-}
-
-function Table({
-  heading,
-  rows,
-}: {
-  heading: string
-  rows: [string, string][]
-}) {
-  return (
-    <div className="mt-4 overflow-x-auto scrollbar-thin">
-      <table className="w-full border-collapse text-left">
-        <thead>
-          <tr className="border-b border-subtle">
-            <th className="py-2 pr-6 text-xs font-medium uppercase tracking-wide text-subtle">
-              {heading}
-            </th>
-            <th className="py-2 text-xs font-medium uppercase tracking-wide text-subtle">
-              Meaning
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-subtle">
-          {rows.map(([name, description]) => (
-            <tr key={name}>
-              <td className="py-2.5 pr-6 align-top font-mono text-sm text-fg">
-                {name}
-              </td>
-              <td className="py-2.5 align-top text-sm text-muted">
-                {description}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="relative mt-4">
+      <pre className="overflow-x-auto rounded-panel border border-subtle bg-surface p-4 pr-12 font-mono text-sm text-fg scrollbar-thin">
+        {children}
+      </pre>
+      <CopyButton value={children} className="absolute right-2 top-2" />
     </div>
   )
 }

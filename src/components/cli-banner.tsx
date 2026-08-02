@@ -1,12 +1,13 @@
-'use client'
+"use client"
 
-import { useState, useSyncExternalStore } from 'react'
-import Link from 'next/link'
-import { Check, Copy, Terminal, X } from 'lucide-react'
-import { IconButton } from '@/components/ui'
+import { useEffect, useSyncExternalStore } from "react"
+import Link from "next/link"
+import { ArrowRight, Terminal, X } from "lucide-react"
+import { Badge, IconButton } from "@/components/ui"
+import { CopyButton } from "@/components/copy-button"
 
-const DISMISSED_KEY = 'kanbanthing.cli-banner.v1'
-const INSTALL_COMMAND = 'npm i -g kanbanthing'
+const DISMISSED_KEY = "kanbanthing.cli-banner.v1"
+const INSTALL_COMMAND = "npm i -g kanbanthing"
 
 const listeners = new Set<() => void>()
 
@@ -19,7 +20,7 @@ function subscribe(listener: () => void) {
 
 function readDismissed() {
   try {
-    return localStorage.getItem(DISMISSED_KEY) === '1'
+    return localStorage.getItem(DISMISSED_KEY) === "1"
   } catch {
     return true
   }
@@ -27,63 +28,70 @@ function readDismissed() {
 
 function dismiss() {
   try {
-    localStorage.setItem(DISMISSED_KEY, '1')
+    localStorage.setItem(DISMISSED_KEY, "1")
   } catch {
-    /* private mode: the banner stays gone for this page view only */
+    /* private mode: the notification stays gone for this page view only */
   }
   for (const listener of listeners) listener()
 }
 
 export function CliBanner() {
-  const [hasCopied, setHasCopied] = useState(false)
   const isDismissed = useSyncExternalStore(subscribe, readDismissed, () => true)
+
+  useEffect(() => {
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") dismiss()
+    }
+    window.addEventListener("keydown", dismissOnEscape)
+    return () => window.removeEventListener("keydown", dismissOnEscape)
+  }, [])
 
   if (isDismissed) return null
 
-  const copyInstallCommand = async () => {
-    try {
-      await navigator.clipboard.writeText(INSTALL_COMMAND)
-      setHasCopied(true)
-      setTimeout(() => setHasCopied(false), 2500)
-    } catch (error) {
-      console.error('Failed to copy the install command:', error)
-    }
-  }
-
   return (
-    <section aria-label="Command line client" className="border-t border-subtle">
-      <div className="mx-auto flex w-full max-w-4xl items-start gap-3 px-6 py-4 sm:items-center">
-        <Terminal aria-hidden className="mt-1 size-4 shrink-0 text-subtle sm:mt-0" />
-        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-          <p className="text-sm text-muted">
-            There is a terminal client now. Add and move cards from a shell or an AI agent.{' '}
-            <Link
-              href="/cli"
-              className="focus-ring rounded text-fg underline underline-offset-4 transition-colors duration-fast hover:text-accent"
-            >
-              Read the docs
-            </Link>
-          </p>
-          <div className="flex items-center gap-1.5 sm:ml-auto">
-            <code className="whitespace-nowrap rounded-control border border-subtle bg-surface px-2 py-1 font-mono text-xs text-fg">
-              {INSTALL_COMMAND}
-            </code>
-            <IconButton
-              label={hasCopied ? 'Install command copied' : 'Copy install command'}
-              size="sm"
-              icon={hasCopied ? <Check /> : <Copy />}
-              onClick={copyInstallCommand}
-            />
+    <aside
+      aria-label="New: command line client"
+      className="fixed inset-x-4 top-20 z-50 rounded-panel border border-accent bg-surface-raised p-4 shadow-modal duration-base ease-out animate-in fade-in-0 slide-in-from-top-2 motion-reduce:animate-none sm:inset-x-auto sm:right-6 sm:w-[21rem]"
+    >
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden
+          className="flex size-8 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent"
+        >
+          <Terminal className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-fg">Terminal client</p>
+            <Badge variant="accent">New</Badge>
           </div>
+          <p className="mt-1 text-sm text-muted">
+            Add and move cards from a shell, a script or an AI agent.
+          </p>
         </div>
         <IconButton
           label="Dismiss"
           size="sm"
-          className="mt-0.5 shrink-0 sm:mt-0"
+          className="-mr-1 -mt-1 shrink-0"
           icon={<X />}
           onClick={dismiss}
         />
       </div>
-    </section>
+
+      <div className="mt-3 flex items-center gap-1.5">
+        <code className="min-w-0 flex-1 truncate rounded-control border border-subtle bg-surface px-2 py-1.5 font-mono text-xs text-fg">
+          {INSTALL_COMMAND}
+        </code>
+        <CopyButton value={INSTALL_COMMAND} />
+      </div>
+
+      <Link
+        href="/cli"
+        className="focus-ring mt-3 inline-flex items-center gap-1 rounded text-sm text-accent transition-colors duration-fast hover:text-accent-hover"
+      >
+        Read the docs
+        <ArrowRight className="size-3.5" />
+      </Link>
+    </aside>
   )
 }
