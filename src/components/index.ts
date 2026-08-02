@@ -1,6 +1,7 @@
 export { default as KanbanBoard } from './kanban-board'
 export { default as CalendarView } from './calendar-view'
 export { default as TimelineView } from './timeline-view'
+export { default as PulseView } from './pulse-view'
 export { default as ViewSwitcher } from './view-switcher'
 export { default as Backlog } from './backlog'
 export { default as UserOnboarding } from './user-onboarding'

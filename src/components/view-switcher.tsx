@@ -1,6 +1,6 @@
 'use client'
 
-import { LayoutGrid, Calendar, Clock } from 'lucide-react'
+import { LayoutGrid, Calendar, Clock, Activity } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { cn } from '@/lib/utils'
 
@@ -8,6 +8,7 @@ const VIEWS = [
   { id: 'kanban', label: 'Board', icon: LayoutGrid },
   { id: 'calendar', label: 'Calendar', icon: Calendar },
   { id: 'timeline', label: 'Timeline', icon: Clock },
+  { id: 'pulse', label: 'Pulse', icon: Activity },
 ] as const
 
 type View = (typeof VIEWS)[number]['id']

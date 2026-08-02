@@ -17,7 +17,15 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { Plus, X } from 'lucide-react'
-import { Backlog, CalendarView, KanbanBoard, Navbar, TimelineView, ViewSwitcher } from '@/components'
+import {
+  Backlog,
+  CalendarView,
+  KanbanBoard,
+  Navbar,
+  PulseView,
+  TimelineView,
+  ViewSwitcher,
+} from '@/components'
 import CardDetail from '@/components/card-detail'
 import CardEditor from '@/components/card-editor'
 import ColumnEditor from '@/components/column-editor'
@@ -140,7 +148,9 @@ function EditableBoard() {
   const { trackEvent } = useAnalytics()
   const { isAuthenticated, isLoading: isAuthLoading } = useBoardAuth(boardId)
 
-  const [currentView, setCurrentView] = useState<'kanban' | 'calendar' | 'timeline'>('kanban')
+  const [currentView, setCurrentView] = useState<'kanban' | 'calendar' | 'timeline' | 'pulse'>(
+    'kanban'
+  )
   const [columns, setColumns] = useState<Column[]>([])
   const [cards, setCards] = useState<Card[]>([])
   const [backlogColumn, setBacklogColumn] = useState<Column | null>(null)
@@ -662,6 +672,7 @@ function EditableBoard() {
         </div>
       )}
 
+<<<<<<< HEAD
       {detailCard && (
         <CardDetail
           card={detailCard}
@@ -677,6 +688,12 @@ function EditableBoard() {
           }}
           onSaveDescription={saveCardDescription}
         />
+=======
+      {!isLoading && currentView === 'pulse' && (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
+          <PulseView boardId={boardId} />
+        </div>
+>>>>>>> worktree-agent-a8f7ef62b45136550
       )}
 
       {cardEditor && (
