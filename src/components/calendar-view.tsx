@@ -131,7 +131,7 @@ function DraggableCard({
   columnName?: string
   actions: CardActions
 }) {
-  const { setNodeRef, listeners, isDragging } = useDraggable({ id: card.id })
+  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id: card.id })
 
   return (
     <li
@@ -147,6 +147,7 @@ function DraggableCard({
         <button
           type="button"
           {...listeners}
+          {...attributes}
           onClick={() => actions.onOpenCard(card)}
           className="focus-ring flex min-w-0 flex-1 cursor-grab rounded-control text-left"
         >
@@ -208,7 +209,7 @@ function DayCell({
       aria-current={today ? 'date' : undefined}
       className={cn(
         'h-24 w-[14.28%] border border-subtle p-1 align-top',
-        isOver ? 'bg-surface-active' : inMonth || cards.length > 0 ? 'bg-surface' : 'bg-canvas'
+        isOver ? 'bg-surface-hover' : inMonth || cards.length > 0 ? 'bg-surface' : 'bg-canvas'
       )}
     >
       <div className="flex items-center gap-1 px-0.5">
