@@ -1,1019 +1,310 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Copy, Check, LinkIcon, Menu, Trash2, Terminal as TerminalIcon, Plus, Settings, Clock, Download, Lock } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { LibraryBig, Plus, Terminal as TerminalIcon, TriangleAlert } from 'lucide-react'
+import { Button, IconButton } from '@/components/ui'
 import { BoardExpirationTimer } from '@/components/board-expiration-timer'
-import { useBoardExpiration } from '@/hooks/use-board-expiration'
-import { createClient } from '@/lib/supabase/client'
-import { Modal } from '@/components/ui'
-import { TerminalInterface } from '@/components/terminal-interface'
-import { Card, Column } from '@/types'
 import { CreateModal } from '@/components/create-modal'
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { saveAs } from 'file-saver'
+import ShareLink from '@/components/share-link'
+import { TerminalInterface } from '@/components/terminal-interface'
+import { BoardMenu } from '@/components/navbar/board-menu'
+import { BoardLifespanModal } from '@/components/navbar/board-lifespan-modal'
+import {
+  DeleteBoardModal,
+  DuplicateBoardModal,
+  RenameBoardModal,
+  SetPasswordModal,
+} from '@/components/navbar/board-modals'
+import { ThemePicker } from '@/components/theme-picker'
+import { exportBoardAsCsv, exportBoardAsJson } from '@/components/navbar/board-export'
+import { runBoardCommand } from '@/components/navbar/board-commands'
+import { useHoursLeft } from '@/hooks/use-board-expiration'
+import { EXPIRY_WARNING_HOURS, expiryWarningText } from '@/lib/board-lifespan'
+import { numbered } from '@/components/board/dnd'
+import { createClient } from '@/lib/supabase/client'
+import { cardRow, columnRow, saveCards, saveColumns, writeMessage } from '@/lib/board-writes'
+import { Card, Column } from '@/types'
 
 interface NavbarProps {
   boardId?: string
+  /** Renders the board name and expiry only: no Create, terminal, share or board menu. */
+  readOnly?: boolean
+  /** The anon role cannot select from `boards`: both come from the caller's `board_read`. */
+  boardName?: string
+  expiresAt?: string
+  onRenamed?: (name: string) => void
+  cards?: Card[]
   setBoardCards?: React.Dispatch<React.SetStateAction<Card[]>>
   setBacklogCards?: React.Dispatch<React.SetStateAction<Card[]>>
   backlogColumnId?: string | null
-  columns: Column[]
-  setColumns: React.Dispatch<React.SetStateAction<Column[]>>
+  columns?: Column[]
+  setColumns?: React.Dispatch<React.SetStateAction<Column[]>>
+  onError?: (message: string) => void
 }
 
-interface NavItem {
-  title: string
-  href: string
-  icon: React.ComponentType<{ className?: string }>
-}
+type Modal =
+  | 'create'
+  | 'terminal'
+  | 'rename'
+  | 'duplicate'
+  | 'password'
+  | 'lifespan'
+  | 'delete'
+  | 'appearance'
+  | null
 
-const mainNav: NavItem[] = []
-
-const shareButtonVariants = {
-  initial: { opacity: 0, y: -4 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -4 },
-  transition: { duration: 0.15, ease: 'easeOut' }
-}
-
-const iconVariants = {
-  initial: { scale: 1 },
-  animate: { scale: [1, 1.2, 1] },
-  transition: { duration: 0.2 }
-}
-
-interface CommandResponse {
-  success: boolean
-  message: string
-}
-
-const DEFAULT_COLORS = [
-  '#ef4444', // red
-  '#f97316', // orange
-  '#eab308', // yellow
-  '#22c55e', // green
-  '#3b82f6', // blue
-  '#a855f7', // purple
-  '#ec4899', // pink
-]
-
-// Helper function to get a random color
-const getRandomColor = () => {
-  return DEFAULT_COLORS[Math.floor(Math.random() * DEFAULT_COLORS.length)]
-}
-
-export default function Navbar({ 
-  boardId, 
-  setBoardCards, 
-  setBacklogCards, 
+export default function Navbar({
+  boardId,
+  readOnly,
+  boardName = '',
+  expiresAt,
+  onRenamed = () => {},
+  cards = [],
+  setBoardCards,
+  setBacklogCards,
   backlogColumnId,
-  columns,
-  setColumns 
+  columns = [],
+  setColumns,
+  onError,
 }: NavbarProps) {
-  const [copied, setCopied] = useState(false)
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isTerminalOpen, setIsTerminalOpen] = useState(false)
-  const router = useRouter()
-  const url = boardId ? `${window.location.origin}/board?id=${boardId}` : ''
-  const displayUrl = url ? url.replace(/^https?:\/\//, '').slice(0, 24) + '...' : ''
-  const expiresAt = useBoardExpiration(boardId)
-  const supabase = createClient()
-  const [allCards, setAllCards] = useState<Card[]>([])
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [timeLeft, setTimeLeft] = useState<string>('')
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
-  const [newPassword, setNewPassword] = useState('')
-  const [isSettingPassword, setIsSettingPassword] = useState(false)
+  const [openModal, setOpenModal] = useState<Modal>(null)
+  const supabase = useMemo(createClient, [])
+  const hoursLeft = useHoursLeft(expiresAt ?? null)
 
-  // Add effect to calculate time left
-  useEffect(() => {
-    if (!expiresAt) return
+  const cardTitles = useMemo(
+    () =>
+      [...cards].sort((a, b) => a.title.localeCompare(b.title)).map(({ title }) => ({ title })),
+    [cards]
+  )
 
-    const calculateTimeLeft = () => {
-      const now = new Date().getTime()
-      const expirationDate = new Date(expiresAt).getTime()
-      const difference = expirationDate - now
+  const cardsInColumn = (columnId: string) => cards.filter((card) => card.column_id === columnId)
 
-      if (difference <= 0) {
-        return 'Expired'
-      }
+  const applyToColumn = (columnId: string) =>
+    columnId === backlogColumnId ? setBacklogCards : setBoardCards
 
-      const days = Math.floor(difference / (1000 * 60 * 60 * 24))
-      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-
-      return `${days}d ${hours}h`
-    }
-
-    setTimeLeft(calculateTimeLeft())
-    const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft())
-    }, 1000 * 60) // Update every minute
-
-    return () => clearInterval(timer)
-  }, [expiresAt])
-
-  // Load all cards when component mounts
-  useEffect(() => {
-    const loadCards = async () => {
-      if (!boardId) return
-
-      const { data: cards } = await supabase
-        .from('cards')
-        .select(`
-          id,
-          title,
-          column_id,
-          description,
-          color,
-          due_date,
-          position,
-          created_at,
-          columns!inner (
-            board_id
-          )
-        `)
-        .eq('columns.board_id', boardId)
-        .order('title')
-
-      if (cards) {
-        console.log('Loaded cards:', cards)
-        setAllCards(cards as Card[])
-      }
-    }
-
-    loadCards()
-  }, [boardId])
-
-  // Helper function to find column by name (case-insensitive)
-  const findColumnByName = (name: string) => {
-    return columns.find(col => 
-      col.name.toLowerCase() === name.toLowerCase()
-    )
-  }
-
-  const handleCopy = async () => {
-    if (!url) return;
-    
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy:', err)
-    }
-  }
-
-  const handleDeleteBoard = async () => {
-    if (!boardId || isDeleting) return
-
-    setIsDeleting(true)
-    try {
-      const { error } = await supabase
-        .rpc('delete_board_cascade', {
-          board_id_param: boardId
-        })
-
-      if (error) throw error
-
-      router.push('/')
-    } catch (error) {
-      console.error('Error deleting board:', error)
-      // You might want to show an error toast here
-    } finally {
-      setIsDeleting(false)
-      setIsDeleteModalOpen(false)
-    }
-  }
-
-  const handleTerminalCommand = async (command: string): Promise<CommandResponse> => {
-    if (!boardId) {
-      return {
-        success: false,
-        message: 'No board selected'
-      }
-    }
-
-    const parts = command.toLowerCase().split(' ')
-    const action = parts[0]
-
-    // Command aliases mapping
-    const commandAliases: Record<string, string> = {
-      'cr': 'create',
-      'dl': 'delete',
-      'mv': 'move',
-      'l': 'list',
-      'h': 'help'
-    }
-
-    // Resolve alias to full command
-    const resolvedAction = commandAliases[action] || action
-
-    try {
-      switch (resolvedAction) {
-        case 'create': {
-          // create/cr {Task name} [in {Column name}]
-          const inIndex = parts.findIndex(part => part === 'in')
-          
-          // Extract the title - if 'in' is not found, take all parts after the command
-          const title = inIndex === -1 
-            ? parts.slice(1).join(' ').split('--')[0].trim()
-            : parts.slice(1, inIndex).join(' ')
-
-          // If no column specified, use Backlog
-          let columnName = 'Backlog'
-          if (inIndex !== -1 && inIndex < parts.length - 1) {
-            columnName = parts.slice(inIndex + 1).join(' ').split('--')[0].trim()
-          }
-
-          // Find column using our helper function
-          const column = findColumnByName(columnName)
-          if (!column) {
-            const availableColumns = columns
-              .map(col => `"${col.name}"`)
-              .join(', ')
-            return {
-              success: false,
-              message: `Column "${columnName}" not found. Available columns: ${availableColumns}`
-            }
-          }
-
-          // Parse optional arguments
-          const fullCommand = command.toLowerCase()
-          let description = ''
-          let color = getRandomColor()
-
-          // Extract description if provided
-          const descMatch = fullCommand.match(/--desc\s+"([^"]+)"/)
-          if (descMatch) {
-            description = descMatch[1]
-          }
-
-          // Extract color if provided
-          const colorMatch = fullCommand.match(/--color\s+(#[0-9a-f]{6}|#[0-9a-f]{3})/i)
-          if (colorMatch) {
-            color = colorMatch[1]
-          }
-
-          // Create the card
-          const { data: card, error } = await supabase
-            .from('cards')
-            .insert({
-              column_id: column.id,
-              title: title,
-              description: description || null,
-              color: color,
-              position: 0
-            })
-            .select('*')
-            .single()
-
-          if (error) throw error
-
-          // Update the appropriate state based on which column the card was created in
-          if (card) {
-            if (column.id === backlogColumnId && setBacklogCards) {
-              setBacklogCards(prev => [...prev, card])
-            } else if (setBoardCards) {
-              setBoardCards(prev => [...prev, card])
-            }
-          }
-
-          // Build success message
-          let successMessage = `Created card "${title}" in column "${column.name}"`
-          if (description) {
-            successMessage += `\nDescription: ${description}`
-          }
-          successMessage += `\nColor: ${color}`
-
-          return {
-            success: true,
-            message: successMessage
-          }
-        }
-
-        case 'move': {
-          // move/mv {Task name} to {Column name}
-          const toIndex = parts.findIndex(part => part === 'to')
-          if (toIndex === -1 || toIndex === 1 || toIndex === parts.length - 1) {
-            return {
-              success: false,
-              message: 'Invalid command format. Use: move {Task name} to {Column name}'
-            }
-          }
-
-          const cardTitle = parts.slice(1, toIndex).join(' ')
-          const columnName = parts.slice(toIndex + 1).join(' ')
-
-          // Find column using our helper function
-          const column = findColumnByName(columnName)
-          if (!column) {
-            const availableColumns = columns
-              .map(col => `"${col.name}"`)
-              .join(', ')
-            return {
-              success: false,
-              message: `Column "${columnName}" not found. Available columns: ${availableColumns}`
-            }
-          }
-
-          // Find the card by title
-          const { data: card } = await supabase
-            .from('cards')
-            .select('*')
-            .eq('title', cardTitle)
-            .single()
-
-          if (!card) {
-            return {
-              success: false,
-              message: `Card "${cardTitle}" not found`
-            }
-          }
-
-          const { error } = await supabase
-            .from('cards')
-            .update({ column_id: column.id })
-            .eq('id', card.id)
-
-          if (error) throw error
-
-          // Update states based on source and destination columns
-          if (setBoardCards && setBacklogCards) {
-            const isFromBacklog = card.column_id === backlogColumnId
-            const isToBacklog = column.id === backlogColumnId
-
-            if (isFromBacklog && !isToBacklog) {
-              // Moving from backlog to board
-              setBacklogCards(prev => prev.filter(c => c.id !== card.id))
-              setBoardCards(prev => [...prev, { ...card, column_id: column.id }])
-            } else if (!isFromBacklog && isToBacklog) {
-              // Moving from board to backlog
-              setBoardCards(prev => prev.filter(c => c.id !== card.id))
-              setBacklogCards(prev => [...prev, { ...card, column_id: column.id }])
-            } else if (!isFromBacklog && !isToBacklog) {
-              // Moving within board
-              setBoardCards(prev => prev.map(c => 
-                c.id === card.id ? { ...c, column_id: column.id } : c
-              ))
-            } else {
-              // Moving within backlog (shouldn't happen, but handle anyway)
-              setBacklogCards(prev => prev.map(c => 
-                c.id === card.id ? { ...c, column_id: column.id } : c
-              ))
-            }
-          }
-
-          return {
-            success: true,
-            message: `Moved card "${cardTitle}" to column "${column.name}"`
-          }
-        }
-
-        case 'list': {
-          // list/l - shows both cards and columns
-          // First get all columns in this board
-          const { data: columns } = await supabase
-            .from('columns')
-            .select('id, name')
-            .eq('board_id', boardId)
-            .order('position')
-
-          if (!columns?.length) {
-            return {
-              success: true,
-              message: 'No columns found in this board'
-            }
-          }
-
-          // Get column IDs for this board
-          const columnIds = columns.map(col => col.id)
-
-          // List all cards in the board's columns
-          const { data: cards, error } = await supabase
-            .from('cards')
-            .select(`
-              id,
-              title,
-              column_id,
-              position
-            `)
-            .in('column_id', columnIds)
-            .order('position')
-
-          if (error) throw error
-
-          // Group cards by column
-          const cardsByColumn = new Map<string, typeof cards>()
-          columns.forEach(col => cardsByColumn.set(col.id, []))
-          cards?.forEach(card => {
-            const columnCards = cardsByColumn.get(card.column_id)
-            if (columnCards) {
-              columnCards.push(card)
-            }
-          })
-
-          // Format the output in a compact way
-          const formatList = () => {
-            return columns.map(column => {
-              const columnCards = cardsByColumn.get(column.id) || []
-              const cardList = columnCards.length 
-                ? columnCards.map(card => `  - ${card.title}`).join('\n')
-                : '  - (empty)'
-              
-              return `${column.name.toUpperCase()}:\n${cardList}`
-            }).join('\n\n')
-          }
-
-          return {
-            success: true,
-            message: columns.length 
-              ? formatList()
-              : 'No columns found in this board'
-          }
-        }
-
-        case 'delete': {
-          // delete/dl {Task name}
-          const cardTitle = parts.slice(1).join(' ')
-
-          // Find the card by title
-          const { data: card } = await supabase
-            .from('cards')
-            .select('*')  // Get all fields to know which state to update
-            .eq('title', cardTitle)
-            .single()
-
-          if (!card) {
-            return {
-              success: false,
-              message: `Card "${cardTitle}" not found`
-            }
-          }
-
-          const { error } = await supabase
-            .from('cards')
-            .delete()
-            .eq('id', card.id)
-
-          if (error) throw error
-
-          // Update the appropriate state
-          if (card.column_id === backlogColumnId && setBacklogCards) {
-            setBacklogCards(prev => prev.filter(c => c.id !== card.id))
-          } else if (setBoardCards) {
-            setBoardCards(prev => prev.filter(c => c.id !== card.id))
-          }
-
-          return {
-            success: true,
-            message: `Deleted card "${cardTitle}"`
-          }
-        }
-
-        case 'help':
-          return {
-            success: true,
-            message: `Available commands:
-create (cr) {Task name} [in {Column name}] [--desc "description"] [--color #hexcode]
-move (mv) {Task name} to {Column name}
-delete (dl) {Task name}
-list (l)
-help (h)
-
-Note: If no column is specified in create command, card will be created in Backlog.`
-          }
-
-        default:
-          return {
-            success: false,
-            message: 'Unknown command. Type "help" or "h" for available commands.'
-          }
-      }
-    } catch (error) {
-      console.error('Terminal command error:', error)
-      return {
-        success: false,
-        message: 'An error occurred while executing the command'
-      }
-    }
-
-    return {
-      success: false,
-      message: 'Invalid command format. Type "help" or "h" for available commands.'
-    }
-  }
-
-  // Add handler for card creation
-  const handleCreateCard = async (columnId: string, cardData: {
-    title: string
-    description: string
-    color: string | null
-    due_date: string | null
-  }) => {
+  const handleCreateCard = async (
+    columnId: string,
+    cardData: { title: string; description: string; color: string | null; due_date: string | null }
+  ) => {
     if (!boardId) return
 
-    try {
-      const newPosition = allCards.filter(card => card.column_id === columnId).length
-
-      const { data: newCard, error } = await supabase
-        .from('cards')
-        .insert({
-          column_id: columnId,
-          title: cardData.title,
-          description: cardData.description,
-          color: cardData.color,
-          due_date: cardData.due_date,
-          position: newPosition
-        })
-        .select('*')
-        .single()
-
-      if (error) throw error
-
-      if (newCard) {
-        // Update the appropriate state based on which column the card was created in
-        if (columnId === backlogColumnId && setBacklogCards) {
-          setBacklogCards(prev => [...prev, newCard])
-        } else if (setBoardCards) {
-          setBoardCards(prev => [...prev, newCard])
-        }
-        // Also update allCards state for terminal functionality
-        setAllCards(prev => [...prev, newCard])
-      }
-    } catch (error) {
-      console.error('Error creating card:', error)
+    const created: Card = {
+      ...cardData,
+      id: crypto.randomUUID(),
+      column_id: columnId,
+      position: cardsInColumn(columnId).length,
+      created_at: new Date().toISOString(),
     }
+
+    const result = await saveCards(supabase, boardId, [cardRow(created)])
+    if (result !== 'ok') {
+      onError?.(writeMessage(result, 'Could not create that card.'))
+      return
+    }
+
+    applyToColumn(columnId)?.((prev) => [...prev, created])
   }
 
-  // Add handler for column creation
+  const handleCreateCards = async (columnId: string, titles: string[]) => {
+    if (!boardId) return
+
+    const fresh = titles.map(
+      (title): Card => ({
+        id: crypto.randomUUID(),
+        column_id: columnId,
+        title,
+        description: null,
+        color: null,
+        due_date: null,
+        position: 0,
+        created_at: new Date().toISOString(),
+      })
+    )
+    const merged = numbered([...cardsInColumn(columnId), ...fresh])
+
+    const result = await saveCards(supabase, boardId, merged.map(cardRow))
+    if (result !== 'ok') {
+      const message = writeMessage(result, 'Could not add those cards.')
+      onError?.(message)
+      throw new Error(message)
+    }
+
+    applyToColumn(columnId)?.((prev) => [
+      ...prev.filter((card) => card.column_id !== columnId),
+      ...merged,
+    ])
+  }
+
   const handleCreateColumn = async (name: string) => {
     if (!boardId) return
 
-    // Generate temporary ID for optimistic update
-    const tempId = `temp-${Date.now()}`
-    const newPosition = columns.length
-
-    // Create new column object
-    const newColumn: Column = {
-      id: tempId,
+    const created: Column = {
+      id: crypto.randomUUID(),
       board_id: boardId,
       name,
-      position: newPosition,
-      created_at: new Date().toISOString()
+      position: columns.filter((column) => column.position >= 0).length,
+      created_at: new Date().toISOString(),
     }
 
-    // Update local state immediately (optimistic update)
-    setColumns(prevColumns => [...prevColumns, newColumn])
-
-    try {
-      const { data: persistedColumn, error } = await supabase
-        .from('columns')
-        .insert({
-          name,
-          board_id: boardId,
-          position: newPosition
-        })
-        .select('*')
-        .single()
-
-      if (error) throw error
-
-      if (persistedColumn) {
-        // Update the local state with the real data
-        setColumns(prevColumns => 
-          prevColumns.map(col => 
-            col.id === tempId ? persistedColumn : col
-          )
-        )
-      }
-    } catch (error) {
-      console.error('Error creating column:', error)
-      // Rollback optimistic update on error
-      setColumns(prevColumns => 
-        prevColumns.filter(col => col.id !== tempId)
-      )
-      alert('Failed to create column. Please try again.')
+    const result = await saveColumns(supabase, boardId, [columnRow(created)])
+    if (result !== 'ok') {
+      onError?.(writeMessage(result, 'Could not create that column.'))
+      return
     }
+
+    setColumns?.((prev) => [...prev, created])
   }
 
-  // Add new helper function to prepare export data
-  const prepareExportData = async () => {
-    if (!boardId) return null
-
-    // Fetch fresh data to ensure we have everything
-    const { data: columns } = await supabase
-      .from('columns')
-      .select('id, name, position')
-      .eq('board_id', boardId)
-      .order('position')
-
-    const { data: cards } = await supabase
-      .from('cards')
-      .select('*')
-      .in('column_id', columns?.map(col => col.id) || [])
-
-    return {
-      columns: columns || [],
-      cards: cards || [],
-      exported_at: new Date().toISOString(),
-      board_id: boardId
-    }
-  }
-
-  // Add export handlers
-  const handleExportJSON = async () => {
-    const data = await prepareExportData()
-    if (!data) return
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    saveAs(blob, `kanban-export-${boardId}-${new Date().toISOString()}.json`)
-  }
-
-  const handleExportCSV = async () => {
-    const data = await prepareExportData()
-    if (!data) return
-
-    // Prepare CSV content
-    const headers = 'Column Name,Card Title,Description,Color,Due Date,Position\n'
-    const rows = data.cards.map(card => {
-      const column = data.columns.find(col => col.id === card.column_id)
-      return [
-        `"${column?.name || ''}"`,
-        `"${card.title}"`,
-        `"${card.description || ''}"`,
-        card.color || '',
-        card.due_date || '',
-        card.position
-      ].join(',')
-    }).join('\n')
-
-    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8' })
-    saveAs(blob, `kanban-export-${boardId}-${new Date().toISOString()}.csv`)
-  }
-
-  const handleSetPassword = async () => {
+  const exportBoard = (download: (boardId: string) => Promise<void>) => {
     if (!boardId) return
-    setIsSettingPassword(true)
-
-    try {
-      console.log('Setting password:', { boardId, newPassword })
-
-      const response = await fetch('/api/board/password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          boardId,
-          password: newPassword,
-          action: 'set'
-        })
-      })
-
-      const data = await response.json()
-      console.log('Set password response:', { response, data })
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to set password')
-      }
-
-      setIsPasswordModalOpen(false)
-      setNewPassword('')
-    } catch (err) {
-      console.error('Error setting password:', err)
-    } finally {
-      setIsSettingPassword(false)
-    }
+    download(boardId).catch((error) => {
+      console.error('Board export failed:', error)
+      onError?.('Could not export this board.')
+    })
   }
+
+  const closeModal = () => setOpenModal(null)
 
   return (
     <>
-      <div className="sticky top-0 z-50 pt-4">
-        <div className="flex mx-auto w-full h-14 sm:h-12 items-center justify-between rounded-lg bg-gray-950/95 backdrop-blur supports-[backdrop-filter]:bg-gray-950/60 border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
-          {/* Logo/Brand */}
-          <Link 
-            href="/"
-            className="mx-4 flex items-center gap-2 text-lg font-semibold"
-          >
-            KanbanThing
-          </Link>
+      <header className="sticky top-0 z-40 flex h-12 items-center gap-2 border-b bg-surface px-3">
+        <Link
+          href="/"
+          className="focus-ring shrink-0 rounded-control text-sm font-medium text-muted transition-colors duration-fast ease-out hover:text-fg"
+        >
+          KanbanThing
+        </Link>
 
-          {/* Share Section with Timer and Delete Button */}
-          {boardId && (
-            <div className="flex items-center gap-1 sm:gap-2 mr-2">
-              {/* Create button */}
-              <motion.button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="flex items-center justify-center gap-2 px-2 py-1.5 rounded-lg 
-                  bg-white/50 dark:bg-gray-800/50 
-                  border border-gray-200/50 dark:border-gray-700/50 
-                  hover:bg-gray-50 dark:hover:bg-gray-700/50 
-                  transition-colors group cursor-pointer min-w-[100px] sm:min-w-[120px]"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                title="Create New"
-              >
-                <Plus className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
-                <span className="text-xs text-gray-600 dark:text-gray-300">Create</span>
-              </motion.button>
+        {boardId && (
+          <>
+            <span aria-hidden className="text-subtle">
+              /
+            </span>
+            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{boardName}</h1>
 
-              {/* Copy URL button - always visible */}
-              <motion.button
-                onClick={handleCopy}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
-                  bg-white/50 dark:bg-gray-800/50 
-                  border border-gray-200/50 dark:border-gray-700/50 
-                  hover:bg-gray-50 dark:hover:bg-gray-700/50 
-                  transition-colors group cursor-pointer"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                title="Click to copy URL"
-              >
-                <motion.div
-                  initial="initial"
-                  animate={copied ? "animate" : "initial"}
-                  variants={iconVariants}
+            <div className="flex shrink-0 items-center gap-1">
+              {hoursLeft !== null && (
+                <span
+                  className={
+                    hoursLeft <= EXPIRY_WARNING_HOURS ? 'inline-flex' : 'hidden md:inline-flex'
+                  }
                 >
-                  {copied ? (
-                    <Check className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <LinkIcon className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
-                  )}
-                </motion.div>
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={copied ? 'copied' : 'url'}
-                    variants={shareButtonVariants}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 select-none hidden xs:block"
-                  >
-                    {copied ? 'Copied!' : displayUrl}
-                  </motion.span>
-                </AnimatePresence>
-              </motion.button>
-
-              {/* Desktop buttons - hidden on mobile */}
-              <div className="hidden sm:flex items-center gap-1 sm:gap-2">
-                <motion.button
-                  onClick={() => setIsTerminalOpen(true)}
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg 
-                    bg-white/50 dark:bg-gray-800/50 
-                    border border-gray-200/50 dark:border-gray-700/50 
-                    hover:bg-gray-50 dark:hover:bg-gray-700/50 
-                    transition-colors group cursor-pointer"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  title="Open Terminal"
-                >
-                  <TerminalIcon className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
-                </motion.button>
-
-                {/* Settings Dropdown for Desktop */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <motion.button
-                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg 
-                        bg-white/50 dark:bg-gray-800/50 
-                        border border-gray-200/50 dark:border-gray-700/50 
-                        hover:bg-gray-50 dark:hover:bg-gray-700/50 
-                        transition-colors"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <Settings className="h-4 w-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
-                    </motion.button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-[200px]">
-                    {/* Password Protection */}
-                    <DropdownMenuItem
-                      onClick={() => setIsPasswordModalOpen(true)}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Lock className="h-4 w-4" />
-                      <span>Password Protection</span>
-                    </DropdownMenuItem>
-
-                    {/* Export Options */}
-                    <DropdownMenuItem
-                      onClick={handleExportJSON}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Download className="h-4 w-4" />
-                      <span>Export as JSON</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={handleExportCSV}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Download className="h-4 w-4" />
-                      <span>Export as CSV</span>
-                    </DropdownMenuItem>
-
-                    {/* Delete Board */}
-                    <DropdownMenuItem
-                      onClick={() => setIsDeleteModalOpen(true)}
-                      className="flex items-center gap-2 cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>Delete Board</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Board Expiration Timer */}
-                {expiresAt && (
-                  <BoardExpirationTimer expiresAt={expiresAt} />
-                )}
-              </div>
-
-              {/* Mobile menu button */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <motion.button
-                    className="sm:hidden flex items-center gap-1 px-2 py-1.5 rounded-lg 
-                      bg-white/50 dark:bg-gray-800/50 
-                      border border-gray-200/50 dark:border-gray-700/50 
-                      hover:bg-gray-50 dark:hover:bg-gray-700/50 
-                      transition-colors"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Settings className="h-4 w-4 text-gray-500" />
-                  </motion.button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[200px]">
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setIsTerminalOpen(true)
-                    }}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <TerminalIcon className="h-4 w-4" />
-                    <span>Terminal</span>
-                  </DropdownMenuItem>
-
-                  {expiresAt && (
-                    <DropdownMenuItem
-                      className="flex items-center gap-2 cursor-default"
-                      disabled
-                    >
-                      <Clock className="h-4 w-4" />
-                      <span>Expires in: {timeLeft}</span>
-                    </DropdownMenuItem>
-                  )}
-
-                  <DropdownMenuItem
-                    onClick={handleExportJSON}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Export as JSON</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={handleExportCSV}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Export as CSV</span>
-                  </DropdownMenuItem>
-
-                  <DropdownMenuItem
-                    onClick={() => setIsPasswordModalOpen(true)}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <Lock className="h-4 w-4" />
-                    <span>Password Protection</span>
-                  </DropdownMenuItem>
-
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setIsDeleteModalOpen(true)
-                    }}
-                    className="flex items-center gap-2 cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Delete Board</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  <BoardExpirationTimer hoursLeft={hoursLeft} />
+                </span>
+              )}
+              {!readOnly && (
+                <>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href="/boards">
+                      <LibraryBig />
+                      Boards
+                    </Link>
+                  </Button>
+                  <ShareLink boardId={boardId} />
+                  <IconButton
+                    label="Open terminal"
+                    size="sm"
+                    icon={<TerminalIcon />}
+                    onClick={() => setOpenModal('terminal')}
+                  />
+                  <Button variant="primary" size="sm" onClick={() => setOpenModal('create')}>
+                    <Plus />
+                    Create
+                  </Button>
+                  <BoardMenu
+                    onAppearance={() => setOpenModal('appearance')}
+                    onRename={() => setOpenModal('rename')}
+                    onDuplicate={() => setOpenModal('duplicate')}
+                    onSetPassword={() => setOpenModal('password')}
+                    onLifespan={() => setOpenModal('lifespan')}
+                    onExportJson={() => exportBoard(exportBoardAsJson)}
+                    onExportCsv={() => exportBoard(exportBoardAsCsv)}
+                    onDelete={() => setOpenModal('delete')}
+                  />
+                </>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </>
+        )}
+      </header>
 
-      {/* Add CreateModal */}
-      <CreateModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        columns={[
-          // Add backlog column first if it exists
-          ...(backlogColumnId ? [{
-            id: backlogColumnId,
-            name: 'Backlog',
-            board_id: boardId!,
-            position: -1,
-            created_at: new Date().toISOString()
-          }] : []),
-          // Then add all other columns
-          ...columns
-        ]}
-        onCreateCard={handleCreateCard}
-        onCreateColumn={handleCreateColumn}
-      />
-
-      {/* Add Terminal Interface */}
-      <TerminalInterface
-        isOpen={isTerminalOpen}
-        onClose={() => setIsTerminalOpen(false)}
-        onCommand={handleTerminalCommand}
-        availableCards={allCards}
-        availableColumns={columns}
-      />
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        title="Delete Board"
-      >
-        <div className="space-y-4">
-          <p className="text-gray-600 dark:text-gray-300">
-            Are you sure you want to delete this board? This action cannot be undone.
+      {boardId && hoursLeft !== null && hoursLeft < 24 && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 border-b border-danger bg-danger-soft px-3 py-2"
+        >
+          <TriangleAlert aria-hidden className="size-4 shrink-0 text-danger" />
+          <p className="min-w-0 flex-1 text-sm text-danger">
+            {expiryWarningText(hoursLeft)} It cannot be renewed, so export it now or duplicate it
+            into a fresh board.
           </p>
-          <div className="flex justify-end gap-2">
-            <Button
-              onClick={() => setIsDeleteModalOpen(false)}
-              variant="outline"
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleDeleteBoard}
-              variant="destructive"
-              disabled={isDeleting}
-            >
-              {isDeleting ? 'Deleting...' : 'Delete Board'}
-            </Button>
-          </div>
+          <Button size="sm" onClick={() => exportBoard(exportBoardAsJson)}>
+            Export JSON
+          </Button>
         </div>
-      </Modal>
+      )}
 
-      <Modal
-        isOpen={isPasswordModalOpen}
-        onClose={() => setIsPasswordModalOpen(false)}
-        title="Password Protection"
-      >
-        <div className="space-y-4">
-          <p className="text-gray-600 dark:text-gray-300">
-            Set a password to restrict access to this board. Leave empty to remove password protection.
-          </p>
-          <div>
-            <label 
-              htmlFor="boardPassword" 
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-            >
-              Board Password
-            </label>
-            <input
-              id="boardPassword"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-              placeholder="Enter password or leave empty"
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              onClick={() => setIsPasswordModalOpen(false)}
-              variant="outline"
-              disabled={isSettingPassword}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSetPassword}
-              disabled={isSettingPassword}
-            >
-              {isSettingPassword ? 'Saving...' : 'Save Password'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <ThemePicker open={openModal === 'appearance'} onClose={closeModal} />
+
+      {boardId && !readOnly && (
+        <>
+          <CreateModal
+            isOpen={openModal === 'create'}
+            onClose={closeModal}
+            columns={columns}
+            onCreateCard={handleCreateCard}
+            onCreateColumn={handleCreateColumn}
+            onCreateCards={handleCreateCards}
+          />
+
+          <TerminalInterface
+            isOpen={openModal === 'terminal'}
+            onClose={closeModal}
+            onCommand={(command) =>
+              runBoardCommand(command, {
+                boardId,
+                columns,
+                cards,
+                backlogColumnId,
+                setBoardCards,
+                setBacklogCards,
+              })
+            }
+            availableCards={cardTitles}
+            availableColumns={columns}
+          />
+
+          <RenameBoardModal
+            open={openModal === 'rename'}
+            onClose={closeModal}
+            boardId={boardId}
+            boardName={boardName}
+            onRenamed={onRenamed}
+          />
+
+          <DuplicateBoardModal
+            open={openModal === 'duplicate'}
+            onClose={closeModal}
+            boardId={boardId}
+            boardName={boardName}
+          />
+
+          <SetPasswordModal
+            open={openModal === 'password'}
+            onClose={closeModal}
+            boardId={boardId}
+          />
+
+          <BoardLifespanModal
+            open={openModal === 'lifespan'}
+            onClose={closeModal}
+            expiresAt={expiresAt ?? null}
+          />
+
+          <DeleteBoardModal open={openModal === 'delete'} onClose={closeModal} boardId={boardId} />
+        </>
+      )}
     </>
   )
 }

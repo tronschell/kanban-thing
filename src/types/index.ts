@@ -29,4 +29,20 @@ export interface CardHistory {
   from_column: string
   to_column: string
   timestamp: string
-} 
+}
+
+export type BoardRead =
+  | { status: 'wrong_password' | 'not_found' }
+  | {
+      status: 'ok'
+      board: {
+        id: string
+        created_at: string
+        name: string
+        expires_at: string
+        requires_password: boolean
+      }
+      columns: Column[]
+      cards: Card[]
+      card_history: CardHistory[]
+    } 
