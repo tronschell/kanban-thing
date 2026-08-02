@@ -12,18 +12,22 @@ import {
   DropdownMenuTrigger,
   IconButton,
 } from '@/components/ui'
+import { checklistProgress } from '@/lib/checklist'
 import { formatDueDate, isDueSoon } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 import type { Card } from '@/types'
 
 export interface CardActions {
   moveTargets: { id: string; name: string }[]
+  onOpenCard: (card: Card) => void
   onEditCard: (card: Card) => void
   onDeleteCard: (card: Card) => void
   onMoveCard: (card: Card, columnId: string) => void
 }
 
 function CardFace({ card, menu }: { card: Card; menu?: React.ReactNode }) {
+  const progress = checklistProgress(card.description ?? '')
+
   return (
     <>
       {card.color && (
@@ -47,11 +51,23 @@ function CardFace({ card, menu }: { card: Card; menu?: React.ReactNode }) {
         {menu}
       </div>
       {card.description && <p className="mt-1 line-clamp-2 text-xs text-muted">{card.description}</p>}
-      {card.due_date && (
+      {(card.due_date || progress) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
-          <Badge variant={isDueSoon(card.due_date) ? 'danger' : 'neutral'}>
-            {formatDueDate(card.due_date)}
-          </Badge>
+          {progress && (
+            <Badge className="font-mono tabular-nums">
+              <span aria-hidden>
+                {progress.done}/{progress.total}
+              </span>
+              <span className="sr-only">
+                {`${progress.done} of ${progress.total} checklist items done`}
+              </span>
+            </Badge>
+          )}
+          {card.due_date && (
+            <Badge variant={isDueSoon(card.due_date) ? 'danger' : 'neutral'}>
+              {formatDueDate(card.due_date)}
+            </Badge>
+          )}
         </div>
       )}
     </>
@@ -72,6 +88,7 @@ export function CardPreview({ card }: { card: Card }) {
 export function SortableCard({
   card,
   moveTargets,
+  onOpenCard,
   onEditCard,
   onDeleteCard,
   onMoveCard,
@@ -128,7 +145,7 @@ export function SortableCard({
       style={{ transform: isDragging ? undefined : CSS.Translate.toString(transform), transition }}
       {...attributes}
       {...listeners}
-      onClick={() => onEditCard(card)}
+      onClick={() => onOpenCard(card)}
       data-card
       className={cn(
         'group relative rounded-card border px-2.5 py-2 focus-ring',
