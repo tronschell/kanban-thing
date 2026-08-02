@@ -25,9 +25,13 @@ interface BulkAddProps {
 export default function BulkAdd({ isOpen, onClose, columns, onSave }: BulkAddProps) {
   const defaultColumnId =
     columns.find((column) => column.name === 'Backlog')?.id ?? columns[0]?.id ?? ''
-  const [columnId, setColumnId] = useState(defaultColumnId)
+  const [selectedColumnId, setSelectedColumnId] = useState('')
   const [text, setText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+
+  const columnId = columns.some((column) => column.id === selectedColumnId)
+    ? selectedColumnId
+    : defaultColumnId
 
   const parsed = parseCardTitles(text)
   const titles = parsed.slice(0, MAX_BULK_CARDS)
@@ -35,7 +39,7 @@ export default function BulkAdd({ isOpen, onClose, columns, onSave }: BulkAddPro
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (titles.length === 0 || isSaving) return
+    if (!columnId || titles.length === 0 || isSaving) return
 
     setIsSaving(true)
     try {
@@ -60,7 +64,7 @@ export default function BulkAdd({ isOpen, onClose, columns, onSave }: BulkAddPro
         <Select
           id="bulk-column"
           value={columnId}
-          onChange={(e) => setColumnId(e.target.value)}
+          onChange={(e) => setSelectedColumnId(e.target.value)}
         >
           {columns.map((column) => (
             <option key={column.id} value={column.id}>
@@ -100,7 +104,7 @@ export default function BulkAdd({ isOpen, onClose, columns, onSave }: BulkAddPro
           <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={isSaving || titles.length === 0}>
+          <Button type="submit" variant="primary" disabled={isSaving || titles.length === 0 || !columnId}>
             {titles.length === 1 ? 'Add 1 card' : `Add ${titles.length} cards`}
           </Button>
         </ModalFooter>
