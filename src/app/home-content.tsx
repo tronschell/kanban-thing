@@ -433,8 +433,8 @@ function Lifespan() {
             Sixty days, then the board is deleted
           </h2>
           <p className="mt-4 max-w-[62ch] text-md text-muted">
-            Every board is removed 60 days after it is created. That is the
-            longest a board can live and there is no way to push it back, so
+            Every board is removed up to 60 days after it is created. That is
+            the longest a board can live and there is no way to push it back, so
             export anything you still need as JSON or CSV from the board menu,
             or start a fresh board and carry the cards over.
           </p>

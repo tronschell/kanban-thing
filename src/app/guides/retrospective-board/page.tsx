@@ -40,8 +40,8 @@ export default function RetrospectiveBoardGuide() {
         </a>{" "}
         makes that a named event, the Sprint Retrospective, whose purpose is to
         plan ways to increase quality and effectiveness, and which it timeboxes
-        to at most three hours for a one-month sprint (shorter sprints get
-        shorter retrospectives).
+        to at most three hours for a one-month sprint (for shorter sprints, it
+        says, the event is usually shorter).
       </p>
       <p>
         The practical consequences of that are the two things most
@@ -177,8 +177,10 @@ export default function RetrospectiveBoardGuide() {
       <p>
         For the next retrospective, duplicate the board with{" "}
         <em>Include cards</em> switched off. You get the same four columns and
-        the same password on a fresh lifespan, and you are set up in one click
-        instead of renaming three columns again.
+        the same password on an empty board, which saves renaming three columns
+        again. Note that a duplicate always starts a 60-day lifespan and there
+        is no way to shorten it, so if you want the 14-day expiry back, create
+        the next board from scratch instead.
       </p>
 
       <h2>Things that reliably go wrong</h2>
