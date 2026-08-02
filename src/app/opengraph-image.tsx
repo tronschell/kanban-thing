@@ -13,8 +13,8 @@ const accent = '#5cd9e8'
 const support = '#f0b357'
 
 const columns = [
-  { name: 'To do', cards: 3, tint: accent },
-  { name: 'Doing', cards: 2, tint: support },
+  { name: 'To Do', cards: 3, tint: accent },
+  { name: 'In Progress', cards: 2, tint: support },
   { name: 'Done', cards: 1, tint: muted },
 ]
 

@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
+Allow: /boards
 Disallow: /board
 
 Sitemap: https://www.kanbanthing.com/sitemap.xml 

@@ -27,10 +27,6 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'KanbanThing',
   },
-  robots: {
-    index: true,
-    follow: true,
-  },
   icons: {
     icon: '/favicon.ico',
   },
