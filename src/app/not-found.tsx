@@ -1,47 +1,22 @@
-'use client'
-
-import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { GradientBackground } from '@/components/ui/gradient-background'
-
-const quirkySayings = [
-  "Oops! This board has floated away into the digital void 🌌",
-  "Looks like this task got lost in the backlog 📝",
-  "404: Board not found in any of our columns 🤔",
-  "Even the best Kanban boards sometimes go missing 🎯",
-  "This ticket must be in another sprint 🏃‍♂️"
-]
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 export default function NotFound() {
-  // Get a random quirky saying
-  const randomSaying = quirkySayings[Math.floor(Math.random() * quirkySayings.length)]
-
   return (
-    <motion.div 
-      className="fixed inset-0 flex items-center justify-center px-4"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      {/* Background layers */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="absolute inset-0">
-        <GradientBackground />
-      </div>
-
-      {/* Content layer */}
-      <div className="relative z-10 text-center">
-        <h1 className="text-8xl font-bold text-white mb-4">404</h1>
-        <p className="text-xl text-white/90 mb-8">
-          {randomSaying}
-        </p>
-        <Link 
-          href="/"
-          className="inline-block bg-white text-gray-950 px-8 py-3 rounded-lg hover:bg-white/70 transition-colors font-medium"
-        >
-          Back to Home 🏠
-        </Link>
-      </div>
-    </motion.div>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-6 text-center">
+      <p className="font-mono text-2xs uppercase tracking-wide text-subtle">
+        404
+      </p>
+      <h1 className="mt-3 text-4xl font-semibold text-fg md:text-5xl">
+        Nothing here
+      </h1>
+      <p className="mt-4 max-w-[62ch] text-md text-muted">
+        This page does not exist, or the board it pointed at has expired. Boards
+        are removed 60 days after they are created.
+      </p>
+      <Button asChild variant="primary" size="lg" className="mt-8">
+        <Link href="/">Back to home</Link>
+      </Button>
+    </main>
   )
-} 
+}

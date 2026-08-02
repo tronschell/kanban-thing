@@ -1,802 +1,750 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { KanbanBoard, CalendarView, ViewSwitcher, Backlog, TimelineView, UserOnboarding, Navbar } from '@/components'
-import { createClient } from '@/lib/supabase/client'
-import { Plus, RefreshCw, Lock } from 'lucide-react'
-import { DragDropContext } from 'react-beautiful-dnd'
-import type { Card, Column } from '@/types'
-import { useAnalytics } from '@/hooks/use-analytics';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  MeasuringStrategy,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { Plus, X } from 'lucide-react'
+import {
+  Backlog,
+  CalendarView,
+  KanbanBoard,
+  Navbar,
+  PulseView,
+  TimelineView,
+  ViewSwitcher,
+} from '@/components'
+import BoardBrief from '@/components/board-brief'
+import CardDetail from '@/components/card-detail'
+import CardEditor from '@/components/card-editor'
+import ColumnEditor from '@/components/column-editor'
+import { CardPreview } from '@/components/sortable-card'
 import { PasswordProtection } from '@/components/password-protection'
+import ReadOnlyBoard from '@/components/read-only-board'
+import { Button, IconButton, Input, Modal, ModalFooter, Skeleton } from '@/components/ui'
+import {
+  boardCollisionDetection,
+  cardsIn,
+  columnOf,
+  dropIndex,
+  moveCard,
+  numbered,
+  touchedColumns,
+} from '@/components/board/dnd'
+import { createClient } from '@/lib/supabase/client'
+import { BACKLOG_NAME, splitBacklog } from '@/lib/backlog'
+import { boardRoute } from '@/lib/board-route'
+import { rememberBoard } from '@/lib/board-library'
+import { DEFAULT_LIFESPAN_DAYS } from '@/lib/board-lifespan'
+import {
+  cardRow,
+  columnRow,
+  createBoard,
+  readBoard,
+  saveCards,
+  saveColumns,
+  writeMessage,
+  type WriteResult,
+} from '@/lib/board-writes'
+import { useAnalytics } from '@/hooks/use-analytics'
 import { useBoardAuth } from '@/hooks/use-board-auth'
+import type { Card, Column } from '@/types'
 
-const ensureBoardPassword = async (supabase: any, boardId: string) => {
-  // Get stored password from localStorage
-  const storedPassword = localStorage.getItem(`board_password_${boardId}`)
-  if (!storedPassword) return false
+type SupabaseClient = ReturnType<typeof createClient>
 
-  // Set the password in Supabase context
-  try {
-    await supabase.rpc('verify_and_set_board_password', {
-      board_id_param: boardId,
-      password_attempt: storedPassword
-    })
-    return true
-  } catch (error) {
-    console.error('Error setting board password:', error)
-    return false
-  }
+interface CardFormData {
+  title: string
+  description: string
+  color: string | null
+  due_date: string | null
 }
 
-const recordCardHistory = async (
-  supabase: any,
-  cardId: string, 
-  fromColumnId: string, 
-  toColumnId: string
-) => {
-  // Get column names for better history readability
-  const { data: columns } = await supabase
-    .from('columns')
-    .select('id, name')
-    .in('id', [fromColumnId, toColumnId]);
+const fetchBoard = async (supabase: SupabaseClient, boardId: string) => {
+  const payload = await readBoard(supabase, boardId)
+  if (payload.status !== 'ok') return payload.status
 
-  const fromColumn = columns?.find(col => col.id === fromColumnId)?.name || 'Unknown';
-  const toColumn = columns?.find(col => col.id === toColumnId)?.name || 'Unknown';
+  const { backlog, columns } = splitBacklog(payload.columns)
+  return { board: payload.board, backlog, columns, cards: payload.cards }
+}
 
-  // Record the movement in card_history
-  await supabase
-    .from('card_history')
-    .insert({
-      card_id: cardId,
-      from_column: fromColumn,
-      to_column: toColumn,
-      timestamp: new Date().toISOString()
-    });
-};
+function BoardSkeleton() {
+  return (
+    <div className="flex flex-1 gap-3 px-3 pb-3">
+      {[0, 1, 2].map((column) => (
+        <div key={column} className="w-column shrink-0 rounded-panel border border-subtle bg-surface p-2">
+          <Skeleton className="mb-2 h-5 w-24" />
+          <div className="flex flex-col gap-2">
+            {[0, 1, 2, 3].map((card) => (
+              <Skeleton key={card} className="h-12 w-full rounded-card" />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="flex items-center gap-2 rounded-panel border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
+    >
+      <span className="min-w-0 flex-1">{message}</span>
+      <IconButton label="Dismiss error" size="sm" icon={<X />} onClick={onDismiss} />
+    </div>
+  )
+}
 
 export default function BoardContent() {
+  const route = boardRoute(useSearchParams())
+
+  if (route.kind === 'read-only') {
+    return <ReadOnlyBoard viewToken={route.viewToken} />
+  }
+
+  return <EditableBoard />
+}
+
+function EditableBoard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const boardId = searchParams.get('id')
-  const [newBoardName, setNewBoardName] = useState('')
-  const [currentView, setCurrentView] = useState<'kanban' | 'calendar' | 'timeline'>('kanban')
-  const [backlogCards, setBacklogCards] = useState<Card[]>([])
-  const [boardCards, setBoardCards] = useState<Card[]>([])
+  const supabase = useMemo(() => createClient(), [])
+  const { trackEvent } = useAnalytics()
+  const {
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    checkFailed,
+    unlock,
+    lock,
+  } = useBoardAuth(boardId)
+
+  const [currentView, setCurrentView] = useState<'kanban' | 'calendar' | 'timeline' | 'pulse'>(
+    'kanban'
+  )
   const [columns, setColumns] = useState<Column[]>([])
-  const [backlogColumnId, setBacklogColumnId] = useState<string | null>(null);
+  const [cards, setCards] = useState<Card[]>([])
+  const [backlogColumn, setBacklogColumn] = useState<Column | null>(null)
+  const [boardName, setBoardName] = useState('')
+  const [expiresAt, setExpiresAt] = useState<string | undefined>(undefined)
+  const [isLoading, setIsLoading] = useState(true)
   const [boardNotFound, setBoardNotFound] = useState(false)
-  const supabase = createClient()
-  const { trackEvent } = useAnalytics();
-  const [isPasswordProtected, setIsPasswordProtected] = useState(false)
-  const [hasPasswordAccess, setHasPasswordAccess] = useState(false)
-  const { isAuthenticated, isLoading } = useBoardAuth(boardId)
-  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false)
+  const [newBoardName, setNewBoardName] = useState('')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const [activeCardId, setActiveCardId] = useState<string | null>(null)
+  const [detailCardId, setDetailCardId] = useState<string | null>(null)
+  const [cardEditor, setCardEditor] = useState<{ columnId: string; card?: Card } | null>(null)
+  const [deletingCard, setDeletingCard] = useState<Card | null>(null)
+  const [columnEditor, setColumnEditor] = useState<{ column?: Column } | null>(null)
+  const [deletingColumn, setDeletingColumn] = useState<Column | null>(null)
+
+  const dragOrigin = useRef<{ cards: Card[]; columnId: string } | null>(null)
+  const writeQueue = useRef<Promise<void>>(Promise.resolve())
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const allColumns = useMemo(
+    () => (backlogColumn ? [backlogColumn, ...columns] : columns),
+    [backlogColumn, columns]
+  )
+
+  const columnIds = useMemo(() => allColumns.map((column) => column.id), [allColumns])
+
+  const moveTargets = useMemo(
+    () => allColumns.map((column) => ({ id: column.id, name: column.name })),
+    [allColumns]
+  )
+
+  const nameOfColumn = (columnId: string) =>
+    allColumns.find((column) => column.id === columnId)?.name ?? 'Unknown'
+
+  const handleWriteResult = (result: WriteResult, message: string) => {
+    if (result === 'not_found') return setBoardNotFound(true)
+    setErrorMessage(writeMessage(result, message))
+    if (result === 'wrong_password') lock()
+  }
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      setShowPasswordPrompt(true)
-    }
-  }, [isLoading, isAuthenticated])
+    if (!boardId || !isAuthenticated) return
+    let cancelled = false
 
-  useEffect(() => {
-    const initializeBacklog = async () => {
-      if (!boardId) return;
+    setIsLoading(true)
+    setBoardNotFound(false)
 
-      try {
-        // First check if board exists
-        const { data: board, error: boardError } = await supabase
-          .from('boards')
-          .select('id')
-          .eq('id', boardId)
-          .single();
+    const loadBoard = async () => {
+      const board = await fetchBoard(supabase, boardId).catch((error) => {
+        console.error('Board load failed:', error)
+        return null
+      })
+      if (cancelled) return
 
-        if (boardError || !board) {
-          setBoardNotFound(true);
-          return;
-        }
-
-        // First try to find existing backlog column
-        const { data: column, error: fetchError } = await supabase
-          .from('columns')
-          .select('id')
-          .eq('board_id', boardId)
-          .eq('name', 'Backlog')
-          .single();
-
-        if (fetchError) {
-          if (fetchError.code === 'PGRST116') { // No rows found
-            // Create backlog column if it doesn't exist
-            const { data: newColumn, error: createError } = await supabase
-              .from('columns')
-              .insert({
-                board_id: boardId,
-                name: 'Backlog',
-                position: -1
-              })
-              .select('id')
-              .single();
-
-            if (createError) throw createError;
-            if (newColumn) setBacklogColumnId(newColumn.id);
-          }
-        } else if (column) {
-          setBacklogColumnId(column.id);
-        }
-      } catch (error) {
-        console.error('Error initializing backlog:', error);
-        setBoardNotFound(true);
-      }
-    };
-
-    initializeBacklog();
-  }, [boardId]);
-
-  useEffect(() => {
-    const fetchColumns = async () => {
-      const { data: columnsData } = await supabase
-        .from('columns')
-        .select('*')
-        .eq('board_id', boardId)
-        .neq('name', 'Backlog')
-        .order('position')
-      
-      if (columnsData) {
-        setColumns(columnsData)
-      }
-    }
-
-    fetchColumns()
-  }, [boardId])
-
-  useEffect(() => {
-    const fetchBacklogCards = async () => {
-      if (!backlogColumnId) return;
-
-      const { data: cards, error } = await supabase
-        .from('cards')
-        .select('*')
-        .eq('column_id', backlogColumnId)
-        .order('position')
-
-      if (error) {
-        console.error('Error fetching backlog cards:', error)
+      if (board === null) {
+        setErrorMessage('Could not load this board.')
+        setIsLoading(false)
         return
       }
 
-      if (cards) {
-        setBacklogCards(cards)
+      if (typeof board === 'string') {
+        if (board === 'not_found') setBoardNotFound(true)
+        else lock()
+        setIsLoading(false)
+        return
       }
-    }
 
-    fetchBacklogCards()
-  }, [backlogColumnId])
+      setBoardName(board.board.name)
+      setExpiresAt(board.board.expires_at)
+      setBacklogColumn(board.backlog)
+      setColumns(board.columns)
+      setCards(board.cards)
+      setIsLoading(false)
 
-  useEffect(() => {
-    const checkPasswordProtection = async () => {
-      if (!boardId) return
-
-      try {
-        // Check if board has password
-        const { data: board } = await supabase
-          .from('boards')
-          .select('password_hash')
-          .eq('id', boardId)
-          .single()
-
-        const hasPassword = !!board?.password_hash
-        console.log('Board password status:', { hasPassword, boardId })
-
-        setIsPasswordProtected(hasPassword)
-
-        if (hasPassword) {
-          // Check if user has already verified the password
-          const hasAccess = localStorage.getItem(`board_access_${boardId}`) === 'true'
-          setHasPasswordAccess(hasAccess)
-        } else {
-          setHasPasswordAccess(true)
-        }
-      } catch (err) {
-        console.error('Error checking password protection:', err)
-      }
-    }
-
-    checkPasswordProtection()
-  }, [boardId])
-
-  const handleDragEnd = async (result: any) => {
-    if (!result.destination) return;
-    const { source, destination, draggableId } = result;
-    
-    // Ensure password is set before drag operations
-    if (boardId) {
-      await ensureBoardPassword(supabase, boardId)
-    }
-
-    if (result.type === 'card') {
-      // Determine if we're working with backlog or board cards
-      const isBacklogSource = source.droppableId === "backlog";
-      const isBacklogDestination = destination.droppableId === "backlog";
-      const currentCards = isBacklogSource ? backlogCards : boardCards;
-      const setCurrentCards = isBacklogSource ? setBacklogCards : setBoardCards;
-      
-      const movedCard = currentCards.find(card => card.id === draggableId);
-      if (!movedCard) return;
-
-      try {
-        // Handle backlog reordering
-        if (isBacklogSource && isBacklogDestination) {
-          // 1. Create new array of backlog cards
-          const newBacklogCards = Array.from(backlogCards);
-          
-          // 2. Remove card from old position and insert at new position
-          const [removed] = newBacklogCards.splice(source.index, 1);
-          newBacklogCards.splice(destination.index, 0, removed);
-          
-          // 3. Update positions sequentially
-          const updates = newBacklogCards.map((card, index) => ({
-            id: card.id,
-            position: index * 1000,
-            column_id: backlogColumnId,
-            title: card.title,
-            created_at: card.created_at
-          }));
-
-          // 4. Update UI optimistically
-          setBacklogCards(newBacklogCards);
-
-          // 5. Update database
-          const { error } = await supabase
-            .from('cards')
-            .upsert(updates, { 
-              onConflict: 'id'
-            });
-
-          if (error) {
-            console.error('Supabase error:', error);
-            throw error;
-          }
-          
-          return; // Exit early as we've handled the backlog case
-        }
-
-        // Handle moving cards from backlog to board
-        if (isBacklogSource && !isBacklogDestination) {
-          // 1. Remove card from backlog
-          const newBacklogCards = backlogCards.filter(card => card.id !== draggableId);
-
-          // 2. Add card to destination column
-          const updatedMovedCard = {
-            ...movedCard,
-            column_id: destination.droppableId,
-            position: destination.index * 1000
-          };
-          const destCards = boardCards.filter(card => card.column_id === destination.droppableId);
-          destCards.splice(destination.index, 0, updatedMovedCard);
-
-          // 3. Update positions sequentially
-          destCards.forEach((card, index) => {
-            card.position = index * 1000;
-          });
-
-          // 4. Prepare database updates with the calculated positions
-          const updates = [
-            ...destCards.map(card => ({
-              id: card.id,
-              position: card.position,
-              column_id: destination.droppableId,
-              title: card.title,
-              created_at: card.created_at
-            }))
-          ];
-
-          // 5. Update UI optimistically
-          setBacklogCards(newBacklogCards);
-          setBoardCards(currentCards => {
-            const unchangedCards = currentCards.filter(card => 
-              card.column_id !== destination.droppableId
-            );
-            
-            return [
-              ...unchangedCards,
-              ...destCards
-            ];
-          });
-
-          // 6. Update database
-          const { error } = await supabase
-            .from('cards')
-            .upsert(updates, { 
-              onConflict: 'id'
-            });
-
-          if (error) {
-            console.error('Supabase error:', error);
-            throw error;
-          }
-
-          // 7. Record history
-          await recordCardHistory(
-            supabase,
-            draggableId,
-            backlogColumnId!,
-            destination.droppableId
-          );
-
-          return; // Exit early as we've handled the backlog to board case
-        }
-
-        // Handle moving cards from board to backlog
-        if (!isBacklogSource && isBacklogDestination) {
-          // 1. Remove card from source column
-          const sourceCards = boardCards.filter(card => card.column_id === source.droppableId);
-          sourceCards.splice(source.index, 1);
-
-          // 2. Add card to backlog
-          const updatedMovedCard = {
-            ...movedCard,
-            column_id: backlogColumnId,
-            position: destination.index * 1000
-          };
-          const newBacklogCards = Array.from(backlogCards);
-          newBacklogCards.splice(destination.index, 0, updatedMovedCard);
-
-          // 3. Update positions sequentially
-          sourceCards.forEach((card, index) => {
-            card.position = index * 1000;
-          });
-          newBacklogCards.forEach((card, index) => {
-            card.position = index * 1000;
-          });
-
-          // 4. Prepare database updates with the calculated positions
-          const updates = [
-            ...sourceCards.map(card => ({
-              id: card.id,
-              position: card.position,
-              column_id: source.droppableId,
-              title: card.title,
-              created_at: card.created_at
-            })),
-            ...newBacklogCards.map(card => ({
-              id: card.id,
-              position: card.position,
-              column_id: backlogColumnId,
-              title: card.title,
-              created_at: card.created_at
-            }))
-          ];
-
-          // 5. Update UI optimistically
-          setBoardCards(currentCards => {
-            const unchangedCards = currentCards.filter(card => 
-              card.column_id !== source.droppableId
-            );
-            
-            return [
-              ...unchangedCards,
-              ...sourceCards
-            ];
-          });
-          setBacklogCards(newBacklogCards);
-
-          // 6. Update database
-          const { error } = await supabase
-            .from('cards')
-            .upsert(updates, { 
-              onConflict: 'id'
-            });
-
-          if (error) {
-            console.error('Supabase error:', error);
-            throw error;
-          }
-
-          // 7. Record history
-          await recordCardHistory(
-            supabase,
-            draggableId,
-            source.droppableId,
-            backlogColumnId!
-          );
-
-          return; // Exit early as we've handled the board to backlog case
-        }
-
-        // Original board cards logic...
-        const sourceCards = boardCards.filter(card => card.column_id === source.droppableId);
-        const destCards = source.droppableId === destination.droppableId 
-          ? sourceCards 
-          : boardCards.filter(card => card.column_id === destination.droppableId);
-        
-        // 2. Remove card from source
-        sourceCards.splice(source.index, 1);
-        
-        // 3. Add card to destination
-        const updatedMovedCard = {
-          ...movedCard,
-          column_id: destination.droppableId,
-          position: destination.index * 1000
-        };
-        
-        if (source.droppableId === destination.droppableId) {
-          sourceCards.splice(destination.index, 0, updatedMovedCard);
-        } else {
-          destCards.splice(destination.index, 0, updatedMovedCard);
-        }
-
-        // 4. Update positions sequentially
-        sourceCards.forEach((card, index) => {
-          card.position = index * 1000;
-        });
-
-        if (source.droppableId !== destination.droppableId) {
-          destCards.forEach((card, index) => {
-            card.position = index * 1000;
-          });
-        }
-
-        // 5. Prepare database updates with the calculated positions
-        const updates = [
-          ...sourceCards.map(card => ({
-            id: card.id,
-            position: card.position,
-            column_id: source.droppableId,
-            title: card.title,
-            created_at: card.created_at
-          }))
-        ];
-
-        if (source.droppableId !== destination.droppableId) {
-          updates.push(...destCards.map(card => ({
-            id: card.id,
-            position: card.position,
-            column_id: destination.droppableId,
-            title: card.title,
-            created_at: card.created_at
-          })));
-        }
-
-        // 6. Update UI optimistically
-        setBoardCards(currentCards => {
-          const unchangedCards = currentCards.filter(card => 
-            card.column_id !== source.droppableId && 
-            card.column_id !== destination.droppableId
-          );
-          
-          return [
-            ...unchangedCards,
-            ...sourceCards,
-            ...(source.droppableId !== destination.droppableId ? destCards : [])
-          ];
-        });
-
-        // 7. Update database
-        const { error } = await supabase
-          .from('cards')
-          .upsert(updates, { 
-            onConflict: 'id'
-          });
-
-        if (error) {
-          console.error('Supabase error:', error);
-          throw error;
-        }
-
-        // 8. Record history if column changed
-        if (source.droppableId !== destination.droppableId) {
-          await recordCardHistory(
-            supabase,
-            draggableId,
-            source.droppableId,
-            destination.droppableId
-          );
-        }
-
-      } catch (error) {
-        console.error('Error updating card positions:', error);
-        refreshBoard(); // Revert to database state if there's an error
-      }
-    }
-  };
-
-  // Add tracking to card creation
-  const handleAddCard = async (columnId: string, cardData: {
-    title: string
-    description: string
-    color: string | null
-    due_date: string | null
-  }) => {
-    // Ensure password is set before adding card
-    if (boardId) {
-      await ensureBoardPassword(supabase, boardId)
-    }
-
-    const newPosition = boardCards.filter(card => card.column_id === columnId).length
-
-    const { data: card } = await supabase
-      .from('cards')
-      .insert({
-        column_id: columnId,
-        title: cardData.title,
-        description: cardData.description,
-        color: cardData.color,
-        due_date: cardData.due_date,
-        position: newPosition,
+      rememberBoard({
+        id: boardId,
+        name: board.board.name,
+        expiresAt: board.board.expires_at,
+        columns: board.backlog ? [board.backlog, ...board.columns] : board.columns,
+        cards: board.cards,
       })
-      .select()
-      .single()
 
-    if (card) {
-      setBoardCards([...boardCards, card])
-      
-      // Track card creation
-      trackEvent('create_card', {
-        card_id: card.id,
-        column_id: columnId,
-      });
+      if (board.backlog) return
 
-      // Scroll the new card into view
-      setTimeout(() => {
-        const cardElement = document.getElementById(`card-${card.id}`)
-        cardElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      }, 100)
+      const repaired: Column = {
+        id: crypto.randomUUID(),
+        board_id: boardId,
+        name: BACKLOG_NAME,
+        position: -1,
+        created_at: new Date().toISOString(),
+      }
+      const result = await saveColumns(supabase, boardId, [columnRow(repaired)])
+      if (!cancelled && result === 'ok') setBacklogColumn(repaired)
+    }
+
+    loadBoard()
+    return () => {
+      cancelled = true
+    }
+  }, [boardId, supabase, isAuthenticated, lock])
+
+  const enqueueWrite = (work: () => Promise<void>) => {
+    const next = writeQueue.current.then(work).catch((error) => {
+      console.error('Board write failed:', error)
+      setErrorMessage('Could not save that change.')
+    })
+    writeQueue.current = next
+    return next
+  }
+
+  const persistCards = (next: Card[], previous: Card[]) =>
+    enqueueWrite(async () => {
+      if (!boardId) return
+      const rows = touchedColumns(next, previous).flatMap((columnId) =>
+        cardsIn(next, columnId).map(cardRow)
+      )
+      if (rows.length === 0) return
+
+      const result = await saveCards(supabase, boardId, rows)
+      if (result !== 'ok') {
+        setCards(previous)
+        handleWriteResult(result, 'Could not save that change.')
+      }
+    })
+
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    if (active.data.current?.type !== 'card') return
+
+    const card = cards.find((item) => item.id === active.id)
+    if (!card) return
+
+    setActiveCardId(card.id)
+    dragOrigin.current = { cards, columnId: card.column_id }
+  }
+
+  const handleDragOver = ({ active, over, activatorEvent }: DragOverEvent) => {
+    if (!over || active.data.current?.type !== 'card') return
+
+    setCards((current) => {
+      const from = columnOf(current, String(active.id), columnIds)
+      const to = columnOf(current, String(over.id), columnIds)
+      // Same-column gaps are opened by the sortable strategy; re-splicing here would loop forever.
+      if (!from || !to || from === to) return current
+      return moveCard(
+        current,
+        String(active.id),
+        to,
+        dropIndex(current, to, active, over, activatorEvent)
+      )
+    })
+  }
+
+  const handleDragCancel = () => {
+    setActiveCardId(null)
+    if (dragOrigin.current) setCards(dragOrigin.current.cards)
+    dragOrigin.current = null
+  }
+
+  const handleDragEnd = async ({ active, over, activatorEvent }: DragEndEvent) => {
+    const origin = dragOrigin.current
+    dragOrigin.current = null
+    setActiveCardId(null)
+
+    if (!over) {
+      if (origin) setCards(origin.cards)
+      return
+    }
+
+    if (active.data.current?.type === 'column') {
+      await reorderColumns(String(active.id), String(over.id))
+      return
+    }
+
+    if (!origin) return
+
+    const toColumnId = columnOf(cards, String(over.id), columnIds)
+    if (!toColumnId) {
+      setCards(origin.cards)
+      return
+    }
+
+    const next = moveCard(
+      cards,
+      String(active.id),
+      toColumnId,
+      dropIndex(cards, toColumnId, active, over, activatorEvent)
+    )
+    setCards(next)
+    await persistCards(next, origin.cards)
+  }
+
+  const reorderColumns = async (activeId: string, overId: string) => {
+    if (!boardId) return
+
+    const fromIndex = columns.findIndex((column) => column.id === activeId)
+    const toIndex = columns.findIndex(
+      (column) => column.id === columnOf(cards, overId, columnIds)
+    )
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return
+
+    const previous = columns
+    const next = arrayMove(columns, fromIndex, toIndex).map((column, position) => ({
+      ...column,
+      position,
+    }))
+    setColumns(next)
+
+    const result = await saveColumns(supabase, boardId, next.map(columnRow))
+    if (result !== 'ok') {
+      setColumns(previous)
+      handleWriteResult(result, 'Could not save the column order.')
     }
   }
 
-  const refreshBoard = async () => {
-    // Fetch columns
-    const { data: columnsData } = await supabase
-      .from('columns')
-      .select('*')
-      .eq('board_id', boardId)
-      .neq('name', 'Backlog')
-      .order('position')
-    
-    if (columnsData) {
-      setColumns(columnsData)
-    }
+  const moveCardToColumn = async (card: Card, toColumnId: string) => {
+    const previous = cards
+    const next = moveCard(previous, card.id, toColumnId, cardsIn(previous, toColumnId).length)
+    setCards(next)
+    await persistCards(next, previous)
+  }
 
-    // Fetch board cards
-    const { data: cardsData } = await supabase
-      .from('cards')
-      .select('*')
-      .eq('board_id', boardId)
-      .order('position')
-    
-    if (cardsData) {
-      setBoardCards(cardsData)
-    }
+  const updateCardFields = async (cardId: string, fields: Partial<Card>) => {
+    if (!boardId) return
 
-    // Fetch backlog cards
-    if (backlogColumnId) {
-      const { data: backlogData } = await supabase
-        .from('cards')
-        .select('*')
-        .eq('column_id', backlogColumnId)
-        .order('position')
-      
-      if (backlogData) {
-        setBacklogCards(backlogData)
+    const previous = cards
+    const next = previous.map((card) => (card.id === cardId ? { ...card, ...fields } : card))
+    const updated = next.find((card) => card.id === cardId)
+    if (!updated) return
+    setCards(next)
+
+    await enqueueWrite(async () => {
+      const result = await saveCards(supabase, boardId, [cardRow(updated)])
+      if (result !== 'ok') {
+        setCards(previous)
+        handleWriteResult(result, 'Could not update that card.')
       }
+    })
+  }
+
+  const saveCard = async (data: CardFormData) => {
+    const editor = cardEditor
+    if (!editor || !boardId) return
+
+    const fields = {
+      title: data.title,
+      description: data.description || null,
+      color: data.color,
+      due_date: data.due_date,
+    }
+
+    if (editor.card) {
+      const cardId = editor.card.id
+      setCardEditor(null)
+      await updateCardFields(cardId, fields)
+      return
+    }
+
+    setCardEditor(null)
+
+    const created: Card = {
+      ...fields,
+      id: crypto.randomUUID(),
+      column_id: editor.columnId,
+      position: cardsIn(cards, editor.columnId).length,
+      created_at: new Date().toISOString(),
+    }
+    setCards((current) => [...current, created])
+
+    const result = await saveCards(supabase, boardId, [cardRow(created)])
+    if (result !== 'ok') {
+      setCards((current) => current.filter((card) => card.id !== created.id))
+      handleWriteResult(result, 'Could not create that card.')
+      return
+    }
+
+    trackEvent('create_card', { card_id: created.id, column_id: editor.columnId })
+  }
+
+  const saveCardDescription = (card: Card, description: string) =>
+    updateCardFields(card.id, { description })
+
+  const deleteCard = async (card: Card) => {
+    setDeletingCard(null)
+    if (!boardId) return
+
+    const previous = cards
+    const remaining = previous.filter((item) => item.id !== card.id)
+    const renumbered = numbered(cardsIn(remaining, card.column_id))
+    const next = [...remaining.filter((item) => item.column_id !== card.column_id), ...renumbered]
+    setCards(next)
+
+    await enqueueWrite(async () => {
+      const result = await saveCards(supabase, boardId, renumbered.map(cardRow), [card.id])
+      if (result !== 'ok') {
+        setCards(previous)
+        handleWriteResult(result, 'Could not delete that card.')
+      }
+    })
+  }
+
+  const saveColumn = async (name: string) => {
+    const editor = columnEditor
+    if (!editor || !boardId) return
+    setColumnEditor(null)
+
+    if (editor.column) {
+      const previous = columns
+      const renamed = { ...editor.column, name }
+      setColumns(previous.map((column) => (column.id === renamed.id ? renamed : column)))
+
+      const result = await saveColumns(supabase, boardId, [columnRow(renamed)])
+      if (result !== 'ok') {
+        setColumns(previous)
+        handleWriteResult(result, 'Could not rename that column.')
+      }
+      return
+    }
+
+    const created: Column = {
+      id: crypto.randomUUID(),
+      board_id: boardId,
+      name,
+      position: columns.length,
+      created_at: new Date().toISOString(),
+    }
+    setColumns((current) => [...current, created])
+
+    const result = await saveColumns(supabase, boardId, [columnRow(created)])
+    if (result !== 'ok') {
+      setColumns((current) => current.filter((column) => column.id !== created.id))
+      handleWriteResult(result, 'Could not create that column.')
+    }
+  }
+
+  const deleteColumn = async (column: Column) => {
+    setDeletingColumn(null)
+    if (!boardId) return
+
+    const previousColumns = columns
+    const previousCards = cards
+    const nextColumns = previousColumns
+      .filter((item) => item.id !== column.id)
+      .map((item, position) => ({ ...item, position }))
+    setColumns(nextColumns)
+    setCards(previousCards.filter((card) => card.column_id !== column.id))
+
+    const result = await saveColumns(supabase, boardId, nextColumns.map(columnRow), [column.id])
+    if (result !== 'ok') {
+      setColumns(previousColumns)
+      setCards(previousCards)
+      handleWriteResult(result, 'Could not delete that column.')
     }
   }
 
   const handleCreateBoard = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     try {
-      // 1. Create the board
-      const { data: board, error: boardError } = await supabase
-        .from('boards')
-        .insert({
-          name: newBoardName,
-          created_by: localStorage.getItem('kanban_user_id')
-        })
-        .select()
-        .single()
-
-      if (boardError) throw boardError
-
-      // 2. Create the backlog column
-      const { data: backlog, error: backlogError } = await supabase
-        .from('columns')
-        .insert({
-          board_id: board.id,
-          name: 'Backlog',
-          position: -1
-        })
-        .select()
-        .single()
-
-      if (backlogError) throw backlogError
-
-      // 3. Initialize state
-      setBacklogColumnId(backlog.id)
-      setBacklogCards([])
-      setBoardCards([])
-      setColumns([backlog])
-
-      // 4. Redirect to the new board
-      router.push(`/board?id=${board.id}`)
-
-      // 5. Fetch initial data including the backlog column
-      const { data: columnsData } = await supabase
-        .from('columns')
-        .select('*')
-        .eq('board_id', board.id)
-        .order('position')
-      
-      if (columnsData) {
-        setColumns(columnsData)
-      }
-
+      const newBoardId = await createBoard(supabase, newBoardName, '', [], DEFAULT_LIFESPAN_DAYS)
+      router.push(`/board?id=${newBoardId}`)
     } catch (error) {
       console.error('Error creating board:', error)
+      setErrorMessage('Could not create the board.')
     }
   }
 
-  if (isLoading) {
-    return <div>Loading...</div>
+  if (isAuthLoading) {
+    return (
+      <div className="flex h-full flex-col overflow-hidden bg-canvas">
+        <BoardSkeleton />
+      </div>
+    )
   }
 
-  if (showPasswordPrompt) {
-    return (
-      <PasswordProtection 
-        boardId={boardId!} 
-        onSuccess={() => {
-          setShowPasswordPrompt(false)
-          window.location.reload() // Reload to refresh authentication state
-        }} 
-      />
-    )
+  if (boardId && !isAuthenticated) {
+    const checkFailedNotice = checkFailed
+      ? 'Could not check this board. Enter its password to try again.'
+      : null
+    return <PasswordProtection unlock={unlock} notice={errorMessage ?? checkFailedNotice} />
   }
 
   if (boardNotFound) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-950 p-4">
-        <div className="max-w-md w-full bg-gray-900 rounded-lg p-8 text-center space-y-4 border border-gray-800 relative z-50">
-          <h1 className="text-2xl font-bold text-gray-100">Board Not Found</h1>
-          <p className="text-gray-400">
-            This board may have expired or does not exist.
-          </p>
-          <button
-            onClick={() => router.push('/')}
-            className="inline-flex items-center justify-center px-4 py-2 
-              bg-blue-600 text-white rounded-lg hover:bg-blue-700 
-              transition-colors duration-200 w-full
-              cursor-pointer relative z-50"
-          >
-            Go to Home Page
-          </button>
-        </div>
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-canvas px-4 text-center">
+        <h1 className="text-xl font-semibold text-fg">Board not found</h1>
+        <p className="text-sm text-muted">This board may have expired or never existed.</p>
+        <Button variant="primary" onClick={() => router.push('/')}>
+          Go to home page
+        </Button>
       </div>
-    );
+    )
   }
 
   if (!boardId) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm border border-gray-200/50 dark:border-gray-700/50">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
-              Create a New Board
-            </h1>
-            <form onSubmit={handleCreateBoard} className="space-y-4">
-              <div>
-                <label 
-                  htmlFor="boardName" 
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                >
-                  Board Name
-                </label>
-                <input
-                  id="boardName"
-                  type="text"
-                  value={newBoardName}
-                  onChange={(e) => setNewBoardName(e.target.value)}
-                  className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                  placeholder="Enter board name"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Create Board
-              </button>
-            </form>
+      <div className="flex h-full items-center justify-center bg-canvas px-4">
+        <form
+          onSubmit={handleCreateBoard}
+          className="w-full max-w-sm rounded-panel border border-subtle bg-surface-raised p-5"
+        >
+          <h1 className="mb-4 text-md font-semibold text-fg">Create a new board</h1>
+          {errorMessage && (
+            <div className="mb-3">
+              <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage(null)} />
+            </div>
+          )}
+          <label htmlFor="board-name" className="block text-xs font-medium text-muted mb-1.5">
+            Board name
+          </label>
+          <Input
+            id="board-name"
+            value={newBoardName}
+            onChange={(e) => setNewBoardName(e.target.value)}
+            placeholder="Board name"
+            required
+          />
+          <div className="mt-4 flex justify-end">
+            <Button type="submit" variant="primary" disabled={!newBoardName.trim()}>
+              <Plus />
+              Create board
+            </Button>
           </div>
-        </div>
+        </form>
       </div>
     )
   }
 
-  if (isPasswordProtected && !hasPasswordAccess) {
-    return (
-      <PasswordProtection 
-        boardId={boardId!} 
-        onSuccess={() => setHasPasswordAccess(true)} 
-      />
-    )
+  const activeCard = cards.find((card) => card.id === activeCardId)
+  const detailCard = cards.find((card) => card.id === detailCardId)
+  const openCardEditor = (card: Card) => setCardEditor({ columnId: card.column_id, card })
+  const cardActions = {
+    moveTargets,
+    onOpenCard: (card: Card) => setDetailCardId(card.id),
+    onEditCard: openCardEditor,
+    onDeleteCard: setDeletingCard,
+    onMoveCard: moveCardToColumn,
+    onAddCard: (columnId: string) => setCardEditor({ columnId }),
   }
 
   return (
-    <div className="flex flex-col min-h-full container mx-auto px-4 sm:px-6 pb-4 sm:pb-8 min-w-[320px]">
-      <Navbar 
-        boardId={boardId} 
-        setBoardCards={setBoardCards}
-        setBacklogCards={setBacklogCards}
-        backlogColumnId={backlogColumnId}
-        columns={[...columns, { 
-          id: backlogColumnId!, 
-          name: 'Backlog',
-          board_id: boardId!,
-          position: -1,
-          created_at: new Date().toISOString()
-        }].filter(Boolean)}
+    <div className="flex h-full flex-col overflow-hidden bg-canvas">
+      <Navbar
+        boardId={boardId}
+        boardName={boardName}
+        expiresAt={expiresAt}
+        onRenamed={setBoardName}
+        cards={cards}
+        setBoardCards={setCards}
+        setBacklogCards={setCards}
+        backlogColumnId={backlogColumn?.id ?? null}
+        columns={allColumns}
         setColumns={setColumns}
+        onError={setErrorMessage}
       />
-      <main className="flex-1">
-        <div className="h-full overflow-y-auto">
-          <div className="pt-4">
-            <div className="relative z-10">
-              <ViewSwitcher 
-                currentView={currentView} 
-                onViewChange={setCurrentView}
-                boardId={boardId}
-              />
-            </div>
-            <div className="drag-container relative z-0">
-              <DragDropContext onDragEnd={handleDragEnd}>
-                <div className="mt-4 sm:mt-6">
-                  {currentView === 'kanban' && (
-                    <div className="flex flex-col gap-6 sm:gap-8">
-                      <div className="overflow-x-auto overflow-y-visible pb-4 sm:mx-0 sm:px-0
-                        scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700
-                        scrollbar-track-transparent">
-                        <div className="min-w-[768px] sm:min-w-0">
-                          <KanbanBoard 
-                            boardId={boardId} 
-                            cards={boardCards}
-                            setCards={setBoardCards}
-                            columns={columns}
-                            setColumns={setColumns}
-                          />
-                        </div>
-                      </div>
 
-                      <div className="sm:px-0">
-                        <Backlog 
-                          boardId={boardId}
-                          cards={backlogCards}
-                          setCards={setBacklogCards}
-                          activeId={null}
-                          backlogColumnId={backlogColumnId}
-                        />
-                      </div>
-                    </div>
-                  )}
+      <div className="px-3 py-2">
+        <ViewSwitcher currentView={currentView} onViewChange={setCurrentView} boardId={boardId} />
+      </div>
 
-                  {currentView === 'calendar' && (
-                    <div className="sm:px-0">
-                      <CalendarView boardId={boardId} />
-                    </div>
-                  )}
+      <BoardBrief boardId={boardId} />
 
-                  {currentView === 'timeline' && (
-                    <div className="sm:px-0">
-                      <TimelineView boardId={boardId} />
-                    </div>
-                  )}
-                </div>
-              </DragDropContext>
-            </div>
-          </div>
+      {errorMessage && (
+        <div className="px-3 pb-2">
+          <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage(null)} />
         </div>
-      </main>
+      )}
+
+      {isLoading && <BoardSkeleton />}
+
+      {!isLoading && currentView === 'kanban' && (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={boardCollisionDetection}
+          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-3 pb-3 scrollbar-thin">
+            {backlogColumn && (
+              <Backlog
+                columnId={backlogColumn.id}
+                cards={cardsIn(cards, backlogColumn.id)}
+                {...cardActions}
+              />
+            )}
+            <KanbanBoard
+              columns={columns}
+              cards={cards}
+              onAddColumn={() => setColumnEditor({})}
+              onRenameColumn={(column) => setColumnEditor({ column })}
+              onDeleteColumn={setDeletingColumn}
+              {...cardActions}
+            />
+          </div>
+
+          <DragOverlay>{activeCard && <CardPreview card={activeCard} />}</DragOverlay>
+        </DndContext>
+      )}
+
+      {!isLoading && currentView === 'calendar' && (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
+          <CalendarView
+            cards={cards}
+            columns={allColumns}
+            onOpenCard={(card) => setCardEditor({ columnId: card.column_id, card })}
+            onSetDueDate={(card, due_date) => updateCardFields(card.id, { due_date })}
+          />
+        </div>
+      )}
+
+      {!isLoading && currentView === 'timeline' && (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
+          <TimelineView boardId={boardId} />
+        </div>
+      )}
+
+      {!isLoading && currentView === 'pulse' && (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
+          <PulseView boardId={boardId} />
+        </div>
+      )}
+
+      {detailCard && (
+        <CardDetail
+          card={detailCard}
+          columnName={nameOfColumn(detailCard.column_id)}
+          onClose={() => setDetailCardId(null)}
+          onEdit={(card) => {
+            setDetailCardId(null)
+            openCardEditor(card)
+          }}
+          onDelete={(card) => {
+            setDetailCardId(null)
+            setDeletingCard(card)
+          }}
+          onSaveDescription={saveCardDescription}
+        />
+      )}
+
+      {cardEditor && (
+        <CardEditor
+          isOpen
+          onClose={() => setCardEditor(null)}
+          onSave={saveCard}
+          isEditing={!!cardEditor.card}
+          columnName={nameOfColumn(cardEditor.columnId)}
+          initialData={
+            cardEditor.card && {
+              title: cardEditor.card.title,
+              description: cardEditor.card.description ?? '',
+              color: cardEditor.card.color,
+              due_date: cardEditor.card.due_date,
+            }
+          }
+        />
+      )}
+
+      <ColumnEditor
+        isOpen={columnEditor !== null}
+        initialName={columnEditor?.column?.name}
+        onClose={() => setColumnEditor(null)}
+        onSave={saveColumn}
+      />
+
+      <Modal
+        open={deletingCard !== null}
+        onClose={() => setDeletingCard(null)}
+        title="Delete card"
+        size="sm"
+      >
+        <p className="text-sm text-muted">
+          {`"${deletingCard?.title}" will be removed from this board permanently.`}
+        </p>
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => setDeletingCard(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={() => deletingCard && deleteCard(deletingCard)}>
+            Delete card
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      <Modal
+        open={deletingColumn !== null}
+        onClose={() => setDeletingColumn(null)}
+        title="Delete column"
+        size="sm"
+      >
+        <p className="text-sm text-muted">
+          {`"${deletingColumn?.name}" and every card inside it will be removed permanently.`}
+        </p>
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => setDeletingColumn(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={() => deletingColumn && deleteColumn(deletingColumn)}>
+            Delete column
+          </Button>
+        </ModalFooter>
+      </Modal>
     </div>
   )
 }

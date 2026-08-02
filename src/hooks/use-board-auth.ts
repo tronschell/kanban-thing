@@ -1,49 +1,69 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import {
+  boardPassword,
+  forgetBoardPassword,
+  rememberBoardPassword,
+  type WriteResult,
+} from '@/lib/board-writes'
 
 export function useBoardAuth(boardId: string | null) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClient()
+  const [checkFailed, setCheckFailed] = useState(false)
+  const supabase = useMemo(createClient, [])
 
   useEffect(() => {
+    let cancelled = false
+
     const checkAuth = async () => {
       if (!boardId) {
         setIsLoading(false)
         return
       }
 
-      try {
-        // First check if board has a password
-        const { data: board } = await supabase
-          .from('boards')
-          .select('password_hash')
-          .eq('id', boardId)
-          .single()
+      setIsLoading(true)
+      setCheckFailed(false)
 
-        // If no password required, user is authenticated
-        if (!board?.password_hash) {
+      try {
+        const { data: needsPassword, error } = await supabase.rpc('board_requires_password', {
+          board_id_param: boardId,
+        })
+        if (cancelled) return
+
+        if (error) {
+          console.error('Error checking board auth:', error)
+          setCheckFailed(true)
+          setIsAuthenticated(false)
+          setIsLoading(false)
+          return
+        }
+
+        // null means the board does not exist: let board_read report not-found instead of
+        // showing a password form for a board nobody can ever unlock.
+        if (needsPassword !== true) {
           setIsAuthenticated(true)
           setIsLoading(false)
           return
         }
 
-        // Check localStorage for stored access
-        const hasStoredAccess = localStorage.getItem(`board_access_${boardId}`) === 'true'
-        const storedPassword = localStorage.getItem(`board_password_${boardId}`)
-
-        if (hasStoredAccess && storedPassword) {
-          // Verify the stored password
-          const { data: isValid } = await supabase.rpc('verify_and_set_board_password', {
-            board_id_param: boardId,
-            password_attempt: storedPassword
-          })
-
-          setIsAuthenticated(isValid)
-        } else {
+        const stored = boardPassword(boardId)
+        if (!stored) {
           setIsAuthenticated(false)
+          setIsLoading(false)
+          return
         }
+
+        const { data: status } = await supabase.rpc('board_check_password', {
+          board_id_param: boardId,
+          password_attempt: stored,
+        })
+        if (cancelled) return
+
+        if (status === 'wrong_password') forgetBoardPassword(boardId)
+        setIsAuthenticated(status === 'ok')
       } catch (error) {
+        if (cancelled) return
         console.error('Error checking board auth:', error)
         setIsAuthenticated(false)
       }
@@ -52,7 +72,36 @@ export function useBoardAuth(boardId: string | null) {
     }
 
     checkAuth()
+    return () => {
+      cancelled = true
+    }
+  }, [boardId, supabase])
+
+  const unlock = useCallback(
+    async (password: string): Promise<WriteResult> => {
+      if (!boardId) return 'not_found'
+
+      const { data, error } = await supabase.rpc('board_check_password', {
+        board_id_param: boardId,
+        password_attempt: password,
+      })
+      if (error) throw error
+
+      const status = data as WriteResult
+      if (status === 'ok') {
+        rememberBoardPassword(boardId, password)
+        setIsAuthenticated(true)
+      }
+      return status
+    },
+    [boardId, supabase]
+  )
+
+  const lock = useCallback(() => {
+    if (boardId) forgetBoardPassword(boardId)
+    setCheckFailed(false)
+    setIsAuthenticated(false)
   }, [boardId])
 
-  return { isAuthenticated, isLoading }
-} 
+  return { isAuthenticated, isLoading, checkFailed, unlock, lock }
+}

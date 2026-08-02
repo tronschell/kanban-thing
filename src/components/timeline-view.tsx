@@ -1,358 +1,258 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useMemo, useState } from 'react'
 import { format, subDays } from 'date-fns'
-import { ArrowRight, GitCommit, Calendar, Clock, ChevronDown, Plus } from 'lucide-react'
-import * as Select from '@radix-ui/react-select'
-import { Modal } from '@/components/ui'
+import { ArrowRight, GitCommit } from 'lucide-react'
 
-interface CardHistory {
-  id: string
-  card_id: string
-  from_column: string
-  to_column: string
-  timestamp: string
-}
+import { createClient } from '@/lib/supabase/client'
+import { readBoard } from '@/lib/board-writes'
+import { formatDueDate, isDueSoon } from '@/lib/date-utils'
+import { Badge, Button, Modal, Select, Skeleton } from '@/components/ui'
+import type { CardHistory } from '@/types'
 
-interface Card {
+interface TimelineCard {
   id: string
   title: string
   description: string | null
   color: string | null
+  due_date: string | null
   created_at: string
-  updated_at: string
+  column_name: string
   card_history: CardHistory[]
 }
 
-type TimeFilter = '7days' | '30days' | '90days' | 'all'
-type SortBy = 'created' | 'updated'
-
-function TimelineEvent({ 
-  timestamp, 
-  title, 
-  description, 
-  type,
-  color,
-}: { 
+interface Entry {
+  id: string
   timestamp: string
-  title: string
-  description: string
-  type: 'creation' | 'movement'
-  color?: string | null
-}) {
-  return (
-    <div className="flex items-start gap-3 mb-2">
-      <div className={`
-        flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-1
-        ${type === 'creation' 
-          ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-          : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-        }
-      `}>
-        {type === 'creation' ? <GitCommit className="w-3 h-3" /> : <ArrowRight className="w-3 h-3" />}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-          <time>{format(new Date(timestamp), 'MMM d, HH:mm')}</time>
-          {color && (
-            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-          )}
-        </div>
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-          {title}
-        </p>
-        <p className="text-xs text-gray-600 dark:text-gray-400">
-          {description}
-        </p>
-      </div>
-    </div>
-  )
+  label: string
+  created: boolean
 }
 
-function FilterSelect({ 
-  icon: Icon, 
-  value, 
-  onChange, 
-  options 
-}: { 
-  icon: any
-  value: string
-  onChange: (value: string) => void
-  options: { value: string; label: string }[]
-}) {
-  return (
-    <Select.Root value={value} onValueChange={onChange}>
-      <Select.Trigger className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-        <Icon className="w-4 h-4 text-gray-500" />
-        <Select.Value />
-        <Select.Icon>
-          <ChevronDown className="w-4 h-4 text-gray-500" />
-        </Select.Icon>
-      </Select.Trigger>
+type Range = '7' | '30' | '90' | 'all'
+type SortBy = 'updated' | 'created'
 
-      <Select.Portal>
-        <Select.Content className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg">
-          <Select.Viewport>
-            {options.map(option => (
-              <Select.Item
-                key={option.value}
-                value={option.value}
-                className="px-3 py-2 text-sm outline-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 data-[highlighted]:bg-gray-100 dark:data-[highlighted]:bg-gray-700"
-              >
-                <Select.ItemText>{option.label}</Select.ItemText>
-              </Select.Item>
-            ))}
-          </Select.Viewport>
-        </Select.Content>
-      </Select.Portal>
-    </Select.Root>
-  )
-}
+const VISIBLE_ENTRIES = 4
+const TICK_MS = 60000
 
-function CardHistoryModal({ 
-  isOpen, 
-  onClose, 
-  card 
-}: { 
-  isOpen: boolean
-  onClose: () => void
-  card: Card & { last_updated: Date }
-}) {
-  const allEvents = [
-    ...card.card_history,
-    {
-      id: 'creation',
-      timestamp: card.created_at,
-      type: 'creation' as const
-    }
+const entriesOf = (card: TimelineCard): Entry[] =>
+  [
+    ...card.card_history.map(history => ({
+      id: history.id,
+      timestamp: history.timestamp,
+      label: `Moved from ${history.from_column} to ${history.to_column}`,
+      created: false,
+    })),
+    { id: `${card.id}-created`, timestamp: card.created_at, label: 'Card created', created: true },
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
+const lastActivityOf = (card: TimelineCard) =>
+  Math.max(
+    new Date(card.created_at).getTime(),
+    ...card.card_history.map(history => new Date(history.timestamp).getTime())
+  )
+
+function EntryRow({ entry }: { entry: Entry }) {
+  const Icon = entry.created ? GitCommit : ArrowRight
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`History for "${card.title}"`}>
-      <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-        {allEvents.map(event => (
-          <TimelineEvent
-            key={event.id}
-            timestamp={event.timestamp}
-            title={event.type === 'creation' ? 'Card Created' : 'Column Changed'}
-            description={event.type === 'creation' 
-              ? 'Card was added to the board'
-              : `Moved from ${(event as CardHistory).from_column} to ${(event as CardHistory).to_column}`
-            }
-            type={event.type === 'creation' ? 'creation' : 'movement'}
-            color={card.color}
-          />
-        ))}
-      </div>
-    </Modal>
+    <li className="flex items-start gap-2">
+      <Icon aria-hidden className="mt-0.5 size-3 shrink-0 text-subtle" />
+      <time
+        dateTime={entry.timestamp}
+        className="shrink-0 text-2xs font-mono tabular-nums text-subtle"
+      >
+        {format(new Date(entry.timestamp), 'MMM d HH:mm')}
+      </time>
+      <span className="min-w-0 flex-1 text-xs text-muted">{entry.label}</span>
+    </li>
   )
 }
 
-function CardTimeline({ card }: { card: Card & { last_updated: Date } }) {
-  const [showAllHistory, setShowAllHistory] = useState(false)
-
-  // Combine and sort all events
-  const allEvents = [
-    ...card.card_history,
-    {
-      id: 'creation',
-      timestamp: card.created_at,
-      type: 'creation' as const
-    }
-  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-
-  // Get recent events (excluding creation if there are other events)
-  const recentEvents = allEvents.slice(0, 6)
-  const hasMoreEvents = allEvents.length > 6
+function CardTimeline({ card }: { card: TimelineCard }) {
+  const [showAll, setShowAll] = useState(false)
+  const entries = entriesOf(card)
+  const hidden = entries.length - VISIBLE_ENTRIES
 
   return (
-    <div key={card.id} className="bg-gray-50/50 dark:bg-gray-800/30 rounded-lg p-3">
-      <h2 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">
-        {card.title}
-      </h2>
+    <li className="relative rounded-card border border-subtle bg-surface-raised px-2.5 py-2 pl-3">
+      {card.color && (
+        <span
+          aria-hidden
+          className="absolute inset-y-1 left-0 w-[3px] rounded-full"
+          style={{ backgroundColor: card.color }}
+        />
+      )}
 
-      <div className="space-y-1">
-        {recentEvents.map(event => (
-          <TimelineEvent
-            key={event.id}
-            timestamp={event.timestamp}
-            title={event.type === 'creation' ? 'Card Created' : 'Column Changed'}
-            description={event.type === 'creation' 
-              ? 'Card was added to the board'
-              : `Moved from ${(event as CardHistory).from_column} to ${(event as CardHistory).to_column}`
-            }
-            type={event.type === 'creation' ? 'creation' : 'movement'}
-            color={card.color}
-          />
-        ))}
+      <div className="flex items-start gap-2">
+        <p className="min-w-0 flex-1 text-sm text-fg">{card.title}</p>
+        <time className="shrink-0 text-2xs font-mono tabular-nums text-subtle">
+          {format(lastActivityOf(card), 'MMM d')}
+        </time>
+      </div>
 
-        {hasMoreEvents && (
-          <button
-            onClick={() => setShowAllHistory(true)}
-            className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-2"
-          >
-            <Plus className="w-3 h-3" />
-            {allEvents.length - 6} more updates
-          </button>
+      {card.description && <p className="mt-1 text-xs text-muted line-clamp-2">{card.description}</p>}
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        <Badge>{card.column_name}</Badge>
+        {card.due_date && (
+          <Badge variant={isDueSoon(card.due_date) ? 'danger' : 'neutral'}>
+            {formatDueDate(card.due_date)}
+          </Badge>
         )}
       </div>
 
-      <CardHistoryModal
-        isOpen={showAllHistory}
-        onClose={() => setShowAllHistory(false)}
-        card={card}
-      />
-    </div>
+      <ol className="mt-2 flex flex-col gap-1 border-t border-subtle pt-2">
+        {entries.slice(0, VISIBLE_ENTRIES).map(entry => (
+          <EntryRow key={entry.id} entry={entry} />
+        ))}
+      </ol>
+
+      {hidden > 0 && (
+        <Button variant="ghost" size="sm" className="mt-1 px-1" onClick={() => setShowAll(true)}>
+          Show {hidden} more
+        </Button>
+      )}
+
+      <Modal open={showAll} onClose={() => setShowAll(false)} title={card.title}>
+        <ol className="flex flex-col gap-1">
+          {entries.map(entry => (
+            <EntryRow key={entry.id} entry={entry} />
+          ))}
+        </ol>
+      </Modal>
+    </li>
+  )
+}
+
+function TimelineSkeleton() {
+  return (
+    <ul className="flex flex-col gap-2">
+      {Array.from({ length: 5 }, (_, i) => (
+        <li key={i} className="rounded-card border border-subtle bg-surface-raised px-2.5 py-2">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="mt-2 h-3 w-24" />
+          <Skeleton className="mt-2.5 h-3 w-full" />
+          <Skeleton className="mt-1.5 h-3 w-3/4" />
+        </li>
+      ))}
+    </ul>
   )
 }
 
 export default function TimelineView({ boardId }: { boardId: string }) {
-  const [cards, setCards] = useState<Card[]>([])
+  const [cards, setCards] = useState<TimelineCard[]>([])
   const [loading, setLoading] = useState(true)
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('30days')
+  const [failed, setFailed] = useState(false)
+  const [range, setRange] = useState<Range>('30')
   const [sortBy, setSortBy] = useState<SortBy>('updated')
-  const supabase = createClient()
+  const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    const fetchCardHistory = async () => {
+    const timer = setInterval(() => setNow(Date.now()), TICK_MS)
+    return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
       setLoading(true)
+      setFailed(false)
 
-      // Calculate date filter
-      const dateFilter = timeFilter === 'all' ? null : 
-        new Date(subDays(new Date(), 
-          timeFilter === '7days' ? 7 : 
-          timeFilter === '30days' ? 30 : 90
-        )).toISOString()
+      const board = await readBoard(createClient(), boardId, true).catch(error => {
+        console.error('Failed to load card history', error)
+        return null
+      })
+      if (cancelled) return
 
-      // First get all columns for this board
-      const { data: columns } = await supabase
-        .from('columns')
-        .select('id')
-        .eq('board_id', boardId)
-
-      if (!columns) return
-
-      // Then get cards with their history
-      const { data: cardsWithHistory, error } = await supabase
-        .from('cards')
-        .select(`
-          id,
-          title,
-          description,
-          color,
-          created_at,
-          card_history (
-            id,
-            from_column,
-            to_column,
-            timestamp
-          )
-        `)
-        .in('column_id', columns.map(col => col.id))
-
-      if (error) {
-        console.error('Error fetching card history:', error)
+      if (board === null || board.status !== 'ok') {
+        setCards([])
+        setFailed(true)
+        setLoading(false)
         return
       }
 
-      if (cardsWithHistory) {
-        // Process cards to add last_updated
-        const processedCards = cardsWithHistory.map(card => {
-          // Get the latest timestamp from either creation or last movement
-          const lastHistoryTimestamp = card.card_history?.length > 0
-            ? Math.max(...card.card_history.map(h => new Date(h.timestamp).getTime()))
-            : new Date(card.created_at).getTime()
-
-          const createdTimestamp = new Date(card.created_at).getTime()
-          
-          return {
-            ...card,
-            last_updated: new Date(Math.max(lastHistoryTimestamp, createdTimestamp))
-          }
-        })
-
-        // Apply date filter if needed
-        let filteredCards = processedCards
-        if (dateFilter) {
-          const filterDate = new Date(dateFilter).getTime()
-          filteredCards = processedCards.filter(card => {
-            const relevantDate = sortBy === 'created' 
-              ? new Date(card.created_at).getTime()
-              : card.last_updated.getTime()
-            return relevantDate >= filterDate
-          })
-        }
-
-        // Sort cards
-        const sortedCards = filteredCards.sort((a, b) => {
-          const dateA = sortBy === 'created' 
-            ? new Date(a.created_at).getTime()
-            : a.last_updated.getTime()
-          const dateB = sortBy === 'created' 
-            ? new Date(b.created_at).getTime()
-            : b.last_updated.getTime()
-          return dateB - dateA
-        })
-
-        setCards(sortedCards)
+      const columnNames = new Map(board.columns.map(column => [column.id, column.name]))
+      const historyByCard = new Map<string, CardHistory[]>()
+      for (const entry of board.card_history) {
+        historyByCard.set(entry.card_id, [...(historyByCard.get(entry.card_id) ?? []), entry])
       }
+
+      setCards(
+        board.cards.map(card => ({
+          id: card.id,
+          title: card.title,
+          description: card.description,
+          color: card.color,
+          due_date: card.due_date,
+          created_at: card.created_at,
+          column_name: columnNames.get(card.column_id) ?? '',
+          card_history: historyByCard.get(card.id) ?? [],
+        }))
+      )
       setLoading(false)
     }
 
-    fetchCardHistory()
-  }, [boardId, timeFilter, sortBy])
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [boardId])
 
-  if (loading) {
+  const visible = useMemo(() => {
+    const activity = (card: TimelineCard) =>
+      sortBy === 'created' ? new Date(card.created_at).getTime() : lastActivityOf(card)
+    const cutoff = range === 'all' ? 0 : subDays(now, Number(range)).getTime()
+
+    return cards.filter(card => activity(card) >= cutoff).sort((a, b) => activity(b) - activity(a))
+  }, [cards, range, sortBy, now])
+
+  if (loading) return <TimelineSkeleton />
+
+  if (failed) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-pulse text-gray-500 dark:text-gray-400">
-          Loading timeline...
-        </div>
-      </div>
+      <p className="rounded-card border border-dashed border-subtle py-6 text-center text-xs text-subtle">
+        Could not read this board&apos;s history.
+      </p>
     )
   }
 
   return (
-    <div className="px-4 py-4">
-      {/* Filters */}
-      <div className="flex items-center gap-2 mb-6">
-        <FilterSelect
-          icon={Calendar}
-          value={timeFilter}
-          onChange={(value) => setTimeFilter(value as TimeFilter)}
-          options={[
-            { value: '7days', label: 'Last 7 days' },
-            { value: '30days', label: 'Last 30 days' },
-            { value: '90days', label: 'Last 90 days' },
-            { value: 'all', label: 'All time' }
-          ]}
-        />
-
-        <FilterSelect
-          icon={Clock}
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Select
+          aria-label="Time range"
+          value={range}
+          onChange={event => setRange(event.target.value as Range)}
+        >
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="all">All time</option>
+        </Select>
+        <Select
+          aria-label="Sort by"
           value={sortBy}
-          onChange={(value) => setSortBy(value as SortBy)}
-          options={[
-            { value: 'updated', label: 'Last updated' },
-            { value: 'created', label: 'Date created' }
-          ]}
-        />
+          onChange={event => setSortBy(event.target.value as SortBy)}
+        >
+          <option value="updated">Last updated</option>
+          <option value="created">Date created</option>
+        </Select>
+        <span className="ml-auto text-2xs font-mono tabular-nums text-subtle">
+          {visible.length}
+        </span>
       </div>
 
-      {/* Timeline */}
-      <div className="space-y-6">
-        {cards.map(card => (
-          <CardTimeline key={card.id} card={card} />
-        ))}
-      </div>
-
-      {cards.length === 0 && (
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-          No card history available for the selected time period
-        </div>
+      {visible.length === 0 ? (
+        <p className="rounded-card border border-dashed border-subtle py-6 text-center text-xs text-subtle">
+          No card activity in this period.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {visible.map(card => (
+            <CardTimeline key={card.id} card={card} />
+          ))}
+        </ul>
       )}
     </div>
   )
-} 
+}

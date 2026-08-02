@@ -40,6 +40,14 @@ yarn-error.log*
 next-env.d.ts
 
 *.sql
+!db/*.sql
+!db/tests/**/*.sql
 
 metadata.json
 src/lib/supabase/add_board_password.sql
+
+# agent worktrees
+.claude/worktrees/
+
+# Supabase CLI local link state
+supabase/

@@ -3,9 +3,5 @@ export default function MainLayout({
 }: {
   children: React.ReactNode
 }) {
-  return (
-    <div className="">
-      {children}
-    </div>
-  )
-} 
+  return <div className="h-full bg-canvas">{children}</div>
+}

@@ -1,36 +1,39 @@
+const startOfLocalDay = (date: Date) => {
+  const copy = new Date(date)
+  copy.setHours(0, 0, 0, 0)
+  return copy
+}
+
+/** The calendar day a stored due date stands for, as `yyyy-MM-dd`. */
+export const dueDateToDay = (dueDate: string) => dueDate.slice(0, 10)
+
+/** Store a `yyyy-MM-dd` day as UTC midnight so every timezone reads back that same day. */
+export const dayToDueDate = (day: string) => `${day}T00:00:00.000Z`
+
+const parseDueDate = (dueDate: string) => {
+  const [year, month, day] = dueDateToDay(dueDate).split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+const daysUntilDue = (dueDate: string) => {
+  const due = parseDueDate(dueDate)
+  const today = startOfLocalDay(new Date())
+  return Math.round((due.getTime() - today.getTime()) / 86400000)
+}
+
 export const formatDueDate = (dueDate: string) => {
-  const due = new Date(dueDate);
-  const dueUTC = new Date(due.getTime() + due.getTimezoneOffset() * 60000);
-  
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const dayAfterTomorrow = new Date(today);
-  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+  const days = daysUntilDue(dueDate)
 
-  // Reset all times to start of day in local timezone
-  today.setHours(0, 0, 0, 0);
-  tomorrow.setHours(0, 0, 0, 0);
-  dayAfterTomorrow.setHours(0, 0, 0, 0);
-  dueUTC.setHours(0, 0, 0, 0);
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Tomorrow'
+  if (days === -1) return 'Yesterday'
+  if (days < 0) return `${Math.abs(days)} days ago`
+  if (days === 2) return 'In 2 days'
 
-  if (dueUTC.getTime() === today.getTime()) return 'Today';
-  if (dueUTC.getTime() === tomorrow.getTime()) return 'Tomorrow';
-  if (dueUTC.getTime() === dayAfterTomorrow.getTime()) return 'In 2 Days';
-  
-  return dueUTC.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-};
+  return parseDueDate(dueDate).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
+}
 
-export const getDueDateColor = (dueDate: string) => {
-  const due = new Date(dueDate);
-  const dueUTC = new Date(due.getTime() + due.getTimezoneOffset() * 60000);
-  
-  const today = new Date();
-  const twoDaysFromNow = new Date(today);
-  twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
-  twoDaysFromNow.setHours(23, 59, 59, 999);
-
-  return dueUTC.getTime() <= twoDaysFromNow.getTime()
-    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-    : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
-}; 
+export const isDueSoon = (dueDate: string) => daysUntilDue(dueDate) <= 2
