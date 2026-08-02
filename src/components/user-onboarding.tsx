@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createBoard, rememberBoardPassword } from '@/lib/board-writes'
-import { useAnalytics } from '@/hooks/use-analytics'
 import { Button, Input, Select } from '@/components/ui'
 import { DEFAULT_LIFESPAN_DAYS, LIFESPAN_OPTIONS, expiryDateFor } from '@/lib/board-lifespan'
 import PasswordValidator from 'password-validator'
@@ -37,7 +36,14 @@ export default function UserOnboarding() {
   const [isCreating, setIsCreating] = useState(false)
   const router = useRouter()
   const supabase = createClient()
-  const { trackEvent } = useAnalytics()
+
+  // location.search, not useSearchParams: that hook would force the form to client-render.
+  useEffect(() => {
+    window.gtag?.('event', 'page_view', {
+      page_path: '/onboarding',
+      page_search: new URLSearchParams(window.location.search).toString(),
+    })
+  }, [])
 
   const validatePassword = (value: string) => {
     const failed = passwordSchema.validate(value, { list: true }) as string[]
@@ -65,7 +71,7 @@ export default function UserOnboarding() {
       rememberBoardPassword(boardId, password)
       localStorage.setItem('kanban_user_id', boardId)
 
-      trackEvent('create_board', { board_id: boardId, board_name: name })
+      window.gtag?.('event', 'create_board', { board_id: boardId, board_name: name })
 
       router.replace(`/board?id=${boardId}`)
     } catch (error) {
