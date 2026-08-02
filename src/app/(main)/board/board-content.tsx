@@ -351,9 +351,6 @@ export default function BoardContent() {
     const editor = cardEditor
     if (!editor) return
 
-    setCardEditor(null)
-    if (boardId) await ensureBoardPassword(supabase, boardId)
-
     const fields = {
       title: data.title,
       description: data.description || null,
@@ -362,16 +359,25 @@ export default function BoardContent() {
     }
 
     if (editor.card) {
+      const cardId = editor.card.id
       const previous = cards
-      setCards(previous.map((card) => (card.id === editor.card!.id ? { ...card, ...fields } : card)))
+      const write = enqueueWrite(async () => {
+        if (boardId) await ensureBoardPassword(supabase, boardId)
+        const { error } = await supabase.from('cards').update(fields).eq('id', cardId)
+        if (error) {
+          setErrorMessage('Could not update that card.')
+          setCards(previous)
+        }
+      })
 
-      const { error } = await supabase.from('cards').update(fields).eq('id', editor.card.id)
-      if (error) {
-        setErrorMessage('Could not update that card.')
-        setCards(previous)
-      }
+      setCardEditor(null)
+      setCards(previous.map((card) => (card.id === cardId ? { ...card, ...fields } : card)))
+      await write
       return
     }
+
+    setCardEditor(null)
+    if (boardId) await ensureBoardPassword(supabase, boardId)
 
     const { data: created, error } = await supabase
       .from('cards')
@@ -393,15 +399,16 @@ export default function BoardContent() {
   }
 
   const saveCardDescription = async (card: Card, description: string) => {
-    const previous = cards
-    setCards(previous.map((item) => (item.id === card.id ? { ...item, description } : item)))
+    setCards((current) =>
+      current.map((item) => (item.id === card.id ? { ...item, description } : item))
+    )
 
     await enqueueWrite(async () => {
       if (boardId) await ensureBoardPassword(supabase, boardId)
       const { error } = await supabase.from('cards').update({ description }).eq('id', card.id)
       if (error) {
-        setErrorMessage('Could not save that checklist.')
-        setCards(previous)
+        setErrorMessage('Could not save that checklist. The board has been reloaded.')
+        await reloadCards()
       }
     })
   }

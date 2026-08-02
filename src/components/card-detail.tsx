@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Badge, Button, Modal, ModalFooter } from '@/components/ui'
@@ -25,21 +24,10 @@ export default function CardDetail({
   onDelete,
   onSaveDescription,
 }: CardDetailProps) {
-  const [isSaving, setIsSaving] = useState(false)
-
   const description = card.description ?? ''
   const checklist = parseChecklist(description)
   const done = checklist.filter((item) => item.checked).length
   const prose = withoutChecklist(description).trim()
-
-  const toggle = async (index: number) => {
-    setIsSaving(true)
-    try {
-      await onSaveDescription(card, toggleChecklistItem(description, index))
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   return (
     <Modal open onClose={onClose} title={card.title} size="lg">
@@ -61,15 +49,16 @@ export default function CardDetail({
                 {done}/{checklist.length}
               </span>
             </div>
-            <ul className="space-y-0.5">
+            <ul aria-label="Checklist" className="space-y-0.5">
               {checklist.map((item) => (
                 <li key={item.index}>
                   <label className="flex cursor-pointer items-start gap-2 rounded-control px-1.5 py-1 text-sm text-fg hover:bg-surface-hover">
                     <input
                       type="checkbox"
                       checked={item.checked}
-                      disabled={isSaving}
-                      onChange={() => toggle(item.index)}
+                      onChange={() =>
+                        onSaveDescription(card, toggleChecklistItem(description, item.index))
+                      }
                       className="focus-ring mt-0.5 size-3.5 shrink-0 accent-accent"
                     />
                     <span className={item.checked ? 'text-subtle line-through' : undefined}>
