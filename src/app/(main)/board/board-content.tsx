@@ -44,6 +44,7 @@ import {
   touchedColumns,
 } from '@/components/board/dnd'
 import { createClient } from '@/lib/supabase/client'
+import { BACKLOG_NAME, splitBacklog } from '@/lib/backlog'
 import { rememberBoard } from '@/lib/board-library'
 import { DEFAULT_LIFESPAN_DAYS } from '@/lib/board-lifespan'
 import {
@@ -69,23 +70,12 @@ interface CardFormData {
   due_date: string | null
 }
 
-const BACKLOG_NAME = 'Backlog'
-
-const lowestIdBacklog = (columns: Column[]) =>
-  columns
-    .filter((column) => column.name === BACKLOG_NAME)
-    .sort((a, b) => a.id.localeCompare(b.id))[0] ?? null
-
 const fetchBoard = async (supabase: SupabaseClient, boardId: string) => {
   const payload = await readBoard(supabase, boardId)
   if (payload.status !== 'ok') return payload.status
 
-  return {
-    board: payload.board,
-    backlog: lowestIdBacklog(payload.columns),
-    columns: payload.columns.filter((column) => column.name !== BACKLOG_NAME),
-    cards: payload.cards,
-  }
+  const { backlog, columns } = splitBacklog(payload.columns)
+  return { board: payload.board, backlog, columns, cards: payload.cards }
 }
 
 function BoardSkeleton() {

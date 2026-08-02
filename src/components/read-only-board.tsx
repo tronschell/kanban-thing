@@ -8,11 +8,10 @@ import { BoardExpirationTimer } from '@/components/board-expiration-timer'
 import { useHoursLeft } from '@/hooks/use-board-expiration'
 import Navbar from '@/components/navbar'
 import { createClient } from '@/lib/supabase/client'
+import { splitBacklog } from '@/lib/backlog'
 import { formatDueDate, isDueSoon } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 import type { Card, Column } from '@/types'
-
-const BACKLOG_NAME = 'Backlog'
 
 interface SharedBoard {
   status: string
@@ -166,10 +165,7 @@ export default function ReadOnlyBoard({
     )
   }
 
-  const backlog = board.columns
-    .filter((column) => column.name === BACKLOG_NAME)
-    .sort((a, b) => a.id.localeCompare(b.id))[0]
-  const columns = board.columns.filter((column) => column.name !== BACKLOG_NAME)
+  const { backlog, columns } = splitBacklog(board.columns)
   const cardsIn = (columnId: string) => board.cards.filter((card) => card.column_id === columnId)
   return (
     <div className="flex h-full flex-col overflow-hidden bg-canvas">
