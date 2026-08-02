@@ -360,6 +360,19 @@ function EditableBoard() {
     await commitCardMove(next, previous, card.id, card.column_id, toColumnId)
   }
 
+  const updateCardFields = async (cardId: string, fields: Partial<Card>) => {
+    setCards((current) => current.map((card) => (card.id === cardId ? { ...card, ...fields } : card)))
+
+    await enqueueWrite(async () => {
+      if (boardId) await ensureBoardPassword(supabase, boardId)
+      const { error } = await supabase.from('cards').update(fields).eq('id', cardId)
+      if (error) {
+        setErrorMessage('Could not update that card. The board has been reloaded.')
+        await reloadCards()
+      }
+    })
+  }
+
   const saveCard = async (data: CardFormData) => {
     const editor = cardEditor
     if (!editor) return
@@ -373,19 +386,8 @@ function EditableBoard() {
 
     if (editor.card) {
       const cardId = editor.card.id
-      const previous = cards
-      const write = enqueueWrite(async () => {
-        if (boardId) await ensureBoardPassword(supabase, boardId)
-        const { error } = await supabase.from('cards').update(fields).eq('id', cardId)
-        if (error) {
-          setErrorMessage('Could not update that card.')
-          setCards(previous)
-        }
-      })
-
       setCardEditor(null)
-      setCards(previous.map((card) => (card.id === cardId ? { ...card, ...fields } : card)))
-      await write
+      await updateCardFields(cardId, fields)
       return
     }
 
@@ -645,7 +647,12 @@ function EditableBoard() {
 
       {!isLoading && currentView === 'calendar' && (
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
-          <CalendarView boardId={boardId} />
+          <CalendarView
+            cards={cards}
+            columns={allColumns}
+            onOpenCard={(card) => setCardEditor({ columnId: card.column_id, card })}
+            onSetDueDate={(card, due_date) => updateCardFields(card.id, { due_date })}
+          />
         </div>
       )}
 
