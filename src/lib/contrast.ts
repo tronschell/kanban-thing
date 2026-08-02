@@ -3,10 +3,13 @@ export const AA_LARGE = 3
 
 export const isHex = (value: string) => /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim())
 
+export function normalizeHex(value: string) {
+  const raw = value.trim().replace('#', '').toLowerCase()
+  return `#${raw.length === 3 ? raw.replace(/./g, (c) => c + c) : raw}`
+}
+
 function parseHex(hex: string): [number, number, number] {
-  const raw = hex.trim().replace('#', '')
-  const full = raw.length === 3 ? raw.replace(/./g, (c) => c + c) : raw
-  const int = Number.parseInt(full, 16)
+  const int = Number.parseInt(normalizeHex(hex).slice(1), 16)
   return [(int >> 16) & 255, (int >> 8) & 255, int & 255]
 }
 

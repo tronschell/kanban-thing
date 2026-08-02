@@ -1,6 +1,6 @@
-import { alpha, isDarkSurface, isHex, mix, readableOn } from './contrast'
+import { alpha, isDarkSurface, isHex, mix, normalizeHex, readableOn } from './contrast'
 
-const THEME_STORAGE_KEY = 'kanbanthing.theme.v1'
+const THEME_STORAGE_KEY = 'kanbanthing.theme.v2'
 
 interface ThemeStructure {
   cardChrome: 'box' | 'rule' | 'ruled-card' | 'glyph-frame'
@@ -235,13 +235,13 @@ const radiusVars = (base: number): Vars => ({
 
 export function resolveVars(preset: ThemePreset, overrides: ThemeOverrides): Vars {
   const { base } = preset
-  const canvas = overrides.canvas ?? base.canvas
-  const fg = overrides.fg ?? base.fg
+  const canvas = normalizeHex(overrides.canvas ?? base.canvas)
+  const fg = normalizeHex(overrides.fg ?? base.fg)
   let vars: Vars = {}
 
   if (overrides.canvas || overrides.fg) vars = { ...vars, ...neutralVars(canvas, fg) }
-  if (overrides.accent) vars = { ...vars, ...accentVars(overrides.accent, canvas) }
-  if (overrides.support) vars = { ...vars, ...supportVars(overrides.support, canvas) }
+  if (overrides.accent) vars = { ...vars, ...accentVars(normalizeHex(overrides.accent), canvas) }
+  if (overrides.support) vars = { ...vars, ...supportVars(normalizeHex(overrides.support), canvas) }
   if (overrides.radius !== undefined) vars = { ...vars, ...radiusVars(overrides.radius) }
   if (overrides.fontSans) vars['--font-sans'] = FONT_STACKS[overrides.fontSans].stack
   if (overrides.fontMono) vars['--font-mono'] = FONT_STACKS[overrides.fontMono].stack
@@ -255,10 +255,10 @@ export function resolveVars(preset: ThemePreset, overrides: ThemeOverrides): Var
 
 /** The four colour tokens a warning can be raised against, resolved for the live preview. */
 export function previewColors(preset: ThemePreset, overrides: ThemeOverrides) {
-  const canvas = overrides.canvas ?? preset.base.canvas
-  const fg = overrides.fg ?? preset.base.fg
-  const accent = overrides.accent ?? preset.base.accent
-  const support = overrides.support ?? preset.base.support
+  const canvas = normalizeHex(overrides.canvas ?? preset.base.canvas)
+  const fg = normalizeHex(overrides.fg ?? preset.base.fg)
+  const accent = normalizeHex(overrides.accent ?? preset.base.accent)
+  const support = normalizeHex(overrides.support ?? preset.base.support)
   return { canvas, fg, accent, support, surfaceRaised: neutralVars(canvas, fg)['--surface-raised'] }
 }
 
@@ -309,7 +309,7 @@ export function loadTheme(): ThemeState {
 
 export function saveTheme(state: ThemeState, vars: Vars) {
   try {
-    localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ version: 1, ...state, vars }))
+    localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ ...state, vars }))
   } catch {
     /* private mode, storage full: the theme still applies for this session */
   }
