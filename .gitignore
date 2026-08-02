@@ -48,3 +48,6 @@ src/lib/supabase/add_board_password.sql
 
 # agent worktrees
 .claude/worktrees/
+
+# Supabase CLI local link state
+supabase/
