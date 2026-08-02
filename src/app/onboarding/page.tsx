@@ -4,12 +4,15 @@ import { generateMetadata } from "@/lib/metadata"
 import { UserOnboarding } from "@/components"
 import { Spinner } from "@/components/ui"
 
-export const metadata: Metadata = generateMetadata({
-  title: "Create a Board - KanbanThing",
-  description:
-    "Create a free kanban board in seconds. Name it, set a password, and share the link. No sign-up required.",
-  path: "/onboarding",
-})
+export const metadata: Metadata = {
+  ...generateMetadata({
+    title: "Create a board",
+    description:
+      "Create a free kanban board in seconds. Name it, set a password, and share the link. No sign-up required.",
+    path: "/onboarding",
+  }),
+  robots: { index: false, follow: false },
+}
 
 export default function OnboardingPage() {
   return (
