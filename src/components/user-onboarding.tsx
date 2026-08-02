@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createBoard, rememberBoardPassword } from '@/lib/board-writes'
@@ -36,6 +36,14 @@ export default function UserOnboarding() {
   const [isCreating, setIsCreating] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  // location.search, not useSearchParams: that hook would force the form to client-render.
+  useEffect(() => {
+    window.gtag?.('event', 'page_view', {
+      page_path: '/onboarding',
+      page_search: new URLSearchParams(window.location.search).toString(),
+    })
+  }, [])
 
   const validatePassword = (value: string) => {
     const failed = passwordSchema.validate(value, { list: true }) as string[]
