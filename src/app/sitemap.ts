@@ -1,23 +1,23 @@
 import type { MetadataRoute } from 'next'
 import { baseUrl } from '@/lib/metadata'
 
+/** Google ignores changefreq and priority, and reads lastmod only while it stays accurate. */
 const pages = [
-  { path: '/', changeFrequency: 'weekly', priority: 1.0 },
-  { path: '/about', changeFrequency: 'monthly', priority: 0.8 },
-  { path: '/cli', changeFrequency: 'monthly', priority: 0.8 },
-  { path: '/guides', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/guides/kanban-columns', changeFrequency: 'yearly', priority: 0.6 },
-  { path: '/guides/retrospective-board', changeFrequency: 'yearly', priority: 0.6 },
-  { path: '/guides/personal-kanban', changeFrequency: 'yearly', priority: 0.6 },
-  { path: '/guides/read-only-board-links', changeFrequency: 'yearly', priority: 0.6 },
-  { path: '/terms', changeFrequency: 'monthly', priority: 0.5 },
-  { path: '/privacy', changeFrequency: 'monthly', priority: 0.5 },
+  { path: '/', lastModified: '2026-08-02' },
+  { path: '/about', lastModified: '2026-08-02' },
+  { path: '/cli', lastModified: '2026-08-02' },
+  { path: '/guides', lastModified: '2026-08-02' },
+  { path: '/guides/kanban-columns', lastModified: '2026-08-02' },
+  { path: '/guides/retrospective-board', lastModified: '2026-08-02' },
+  { path: '/guides/personal-kanban', lastModified: '2026-08-02' },
+  { path: '/guides/read-only-board-links', lastModified: '2026-08-02' },
+  { path: '/terms', lastModified: '2026-08-02' },
+  { path: '/privacy', lastModified: '2026-08-02' },
 ] as const
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return pages.map(({ path, changeFrequency, priority }) => ({
+  return pages.map(({ path, lastModified }) => ({
     url: `${baseUrl}${path}`,
-    changeFrequency,
-    priority,
+    lastModified,
   }))
 }

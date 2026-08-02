@@ -108,13 +108,19 @@ export default function CliPage() {
         <CliStats />
 
         <Section title="Install">
-          <p className="text-md text-muted">Requires Node 20 or newer.</p>
-          <Code>npm i -g kanbanthing</Code>
+          <p className="text-md text-muted">
+            Requires Node 20 or newer. The CLI is not on npm yet — until it is,
+            build it from source:
+          </p>
+          <Code>{`git clone https://github.com/tronschell/kanban-cli
+cd kanban-cli
+npm install && npm run build
+node dist/cli.js --help`}</Code>
           <p className="mt-4 text-md text-muted">
             The binary is called <code className="font-mono text-fg">kanban</code>.
-            To run it without installing anything:
+            Once the package is published, this becomes:
           </p>
-          <Code>npx kanbanthing</Code>
+          <Code>npm i -g kanbanthing</Code>
         </Section>
 
         <Section title="Quickstart">
