@@ -1,10 +1,15 @@
 import { saveAs } from 'file-saver'
 import { createClient } from '@/lib/supabase/client'
 import { columnRow, readBoard } from '@/lib/board-writes'
+import type { Card, Column } from '@/types'
 
 const fileStamp = () => new Date().toISOString().replace(/[:.]/g, '-')
 
-const csvCell = (value: string | number | null) => `"${String(value ?? '').replace(/"/g, '""')}"`
+const csvCell = (value: string | number | null) => {
+  const text = String(value ?? '')
+  const guarded = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
+  return `"${guarded.replace(/"/g, '""')}"`
+}
 
 async function fetchBoardData(boardId: string) {
   const payload = await readBoard(createClient(), boardId)
@@ -22,8 +27,10 @@ export async function exportBoardAsJson(boardId: string) {
   saveAs(blob, `kanban-${boardId}-${fileStamp()}.json`)
 }
 
-export async function exportBoardAsCsv(boardId: string) {
-  const { columns, cards } = await fetchBoardData(boardId)
+export const buildCsv = (
+  columns: Pick<Column, 'id' | 'name'>[],
+  cards: Pick<Card, 'column_id' | 'title' | 'description' | 'color' | 'due_date' | 'position'>[]
+) => {
   const columnNames = new Map(columns.map((column) => [column.id, column.name]))
 
   const rows = cards.map((card) =>
@@ -39,8 +46,11 @@ export async function exportBoardAsCsv(boardId: string) {
       .join(',')
   )
 
-  const blob = new Blob([['Column,Title,Description,Colour,Due date,Position', ...rows].join('\n')], {
-    type: 'text/csv;charset=utf-8',
-  })
+  return `\ufeff${['Column,Title,Description,Colour,Due date,Position', ...rows].join('\n')}`
+}
+
+export async function exportBoardAsCsv(boardId: string) {
+  const { columns, cards } = await fetchBoardData(boardId)
+  const blob = new Blob([buildCsv(columns, cards)], { type: 'text/csv;charset=utf-8' })
   saveAs(blob, `kanban-${boardId}-${fileStamp()}.csv`)
 }
