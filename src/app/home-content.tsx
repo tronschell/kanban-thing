@@ -117,6 +117,12 @@ function SiteHeader() {
             </Link>
           )}
           <Link
+            href="/guides"
+            className="focus-ring hidden rounded text-sm text-muted transition-colors duration-fast hover:text-fg sm:inline"
+          >
+            Guides
+          </Link>
+          <Link
             href="/about"
             className="focus-ring hidden rounded text-sm text-muted transition-colors duration-fast hover:text-fg sm:inline"
           >
@@ -339,16 +345,31 @@ function Features() {
           </p>
           <dl className="mt-10 grid gap-8 sm:grid-cols-2">
             <Feature icon={<Link2 />} title="Share by link">
-              Anyone holding the link and the password works on the same board.
-              There is nobody to invite and no seat to pay for.
+              Anyone holding the link and the password works on the same board,
+              or a{" "}
+              <Link
+                href="/guides/read-only-board-links"
+                className="focus-ring rounded underline underline-offset-4 hover:text-fg"
+              >
+                read-only link
+              </Link>{" "}
+              shares it without the password. There is nobody to invite and no
+              seat to pay for.
             </Feature>
             <Feature icon={<MousePointerClick />} title="Drag and drop">
               Move cards between columns by dragging, or move them from the card
               menu when a pointer is not an option.
             </Feature>
             <Feature icon={<Columns3 />} title="Columns and a backlog">
-              Add, rename and reorder columns. Park everything that is not
-              scheduled yet in the backlog, the first panel on the board.
+              Add, rename and{" "}
+              <Link
+                href="/guides/kanban-columns"
+                className="focus-ring rounded underline underline-offset-4 hover:text-fg"
+              >
+                reorder columns
+              </Link>
+              . Park everything that is not scheduled yet in the backlog, the
+              first panel on the board.
             </Feature>
             <Feature icon={<CalendarRange />} title="Calendar and timeline">
               The same cards on a calendar by due date, or on a timeline by
