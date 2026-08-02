@@ -1,4 +1,6 @@
--- Run after 09. Boards are destroyed at 60 days, so these counters are the only permanent record.
+-- Run after 13, and before 22_expiry_hard_cap.sql, which is what finally arms the cleanup job.
+-- Boards are destroyed at 60 days, so these counters are the only permanent record. global_stats
+-- is not a board-owned table and nothing cascades into it, so cleanup leaves it standing.
 
 begin;
 

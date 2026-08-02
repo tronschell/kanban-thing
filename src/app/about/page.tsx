@@ -85,8 +85,8 @@ export default function AboutPage() {
           <h2>What it does not do</h2>
           <p>
             There are no accounts, no teams, no permissions and no paid tier.
-            Boards are deleted two months after they are created, so anything
-            you want to keep should be copied out before then. If you need
+            Boards are deleted 60 days after they are created, so anything you
+            want to keep should be copied out before then. If you need
             long-lived project history, KanbanThing is the wrong tool and that
             is on purpose.
           </p>

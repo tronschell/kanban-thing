@@ -96,9 +96,9 @@ export default function PrivacyPage() {
 
           <h2>How long we keep it</h2>
           <p>
-            Boards are deleted two months after they are created, along with
-            their columns and cards. There is no way to recover a board after
-            that, so copy out anything you want to keep.
+            Boards are deleted 60 days after they are created, along with their
+            columns and cards. There is no way to recover a board after that, so
+            copy out anything you want to keep.
           </p>
 
           <h2>Analytics and advertising</h2>

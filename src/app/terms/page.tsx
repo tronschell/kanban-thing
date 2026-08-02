@@ -73,7 +73,7 @@ export default function TermsPage() {
 
           <h2>4. Board lifespan</h2>
           <p>
-            Boards are deleted two months after they are created. Export or copy
+            Boards are deleted 60 days after they are created. Export or copy
             anything you want to keep before then. We do not guarantee that a
             board, or any card on it, will still exist at any later point.
           </p>
