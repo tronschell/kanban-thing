@@ -17,46 +17,11 @@ import { CliBanner } from "@/components/cli-banner"
 import { DemoBoard } from "@/components/demo-board"
 import { readLibrary } from "@/lib/board-library"
 import { FONT_STACKS, PRESETS } from "@/lib/themes"
-
-const structuredData = {
-  "@context": "https://schema.org",
-  "@type": ["SoftwareApplication", "WebApplication"],
-  name: "KanbanThing",
-  applicationCategory: "ProductivityApplication",
-  operatingSystem: "Any",
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
-  },
-  description:
-    "A free, no-signup Kanban board application/tool built to make you extraordinarily productive. The easiest way to organize your work.",
-  featureList: [
-    "No sign-up required",
-    "Always free",
-    "Boards last up to 60 days",
-    "Shareable board links",
-    "Drag and drop interface",
-    "Six interface themes",
-  ],
-  author: {
-    "@type": "Person",
-    name: "Tron Schell",
-    sameAs: "https://www.linkedin.com/in/tron-schell-aa0856181/",
-  },
-  sameAs: [
-    "https://bsky.app/profile/kanbanthing.bsky.social",
-    "https://twitter.com/kanbanthing",
-  ],
-}
+import { FAQS } from "./faqs"
 
 export default function HomeContent() {
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
       <SiteHeader />
       <CliBanner />
       <main className="flex-1">
@@ -65,6 +30,7 @@ export default function HomeContent() {
         <Appearances />
         <Features />
         <Lifespan />
+        <Faq />
         <ClosingCta />
       </main>
       <SiteFooter />
@@ -222,7 +188,7 @@ function HowItWorks() {
             id="how-it-works"
             className="text-2xl font-semibold text-fg md:text-3xl"
           >
-            Three steps, one link
+            How to make a shared kanban board, in three steps
           </h2>
           <p className="mt-3 text-sm text-muted">
             About ten seconds from an empty tab to a board your team can open.
@@ -280,7 +246,7 @@ function Appearances() {
             id="appearances"
             className="text-2xl font-semibold text-fg md:text-3xl"
           >
-            Six interfaces for the same board
+            Six interfaces for the same kanban board
           </h2>
           <p className="mt-4 max-w-[62ch] text-md text-muted">
             The board above is drawn by whichever of these you pick, from
@@ -345,7 +311,7 @@ function Features() {
             id="features"
             className="text-2xl font-semibold text-fg md:text-3xl"
           >
-            Enough board to be useful, and no more
+            What a kanban board needs, and nothing else
           </h2>
           <p className="mt-4 max-w-[62ch] text-md text-muted">
             KanbanThing is a utility, not a platform. It does the handful of
@@ -353,7 +319,8 @@ function Features() {
           </p>
           <dl className="mt-10 grid gap-8 sm:grid-cols-2">
             <Feature icon={<Link2 />} title="Share by link">
-              Anyone holding the link and the password works on the same board,
+              The board lives at its own address rather than in your browser, so
+              anyone holding the link and the password works on the same board,
               or a{" "}
               <Link
                 href="/guides/read-only-board-links"
@@ -438,7 +405,7 @@ function Lifespan() {
             id="lifespan"
             className="text-2xl font-semibold text-fg md:text-3xl"
           >
-            Sixty days, then the board is deleted
+            How long a board lasts: up to 60 days
           </h2>
           <p className="mt-4 max-w-[62ch] text-md text-muted">
             Every board is removed up to 60 days after it is created. That is
@@ -447,6 +414,30 @@ function Lifespan() {
             or start a fresh board and carry the cards over.
           </p>
         </div>
+      </div>
+    </section>
+  )
+}
+
+function Faq() {
+  return (
+    <section aria-labelledby="faq" className="border-t border-subtle">
+      <div className="mx-auto w-full max-w-4xl px-6 py-16">
+        <Reveal>
+          <h2 id="faq" className="text-2xl font-semibold text-fg md:text-3xl">
+            Common questions
+          </h2>
+          <dl className="mt-10 divide-y divide-subtle border-y border-subtle">
+            {FAQS.map(({ question, answer }) => (
+              <div key={question} className="py-5">
+                <dt className="text-md font-medium text-fg">{question}</dt>
+                <dd className="mt-2 max-w-[70ch] text-sm text-muted">
+                  {answer}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Reveal>
       </div>
     </section>
   )

@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { generateMetadata } from "@/lib/metadata"
+import { baseUrl, generateMetadata } from "@/lib/metadata"
 import { Button } from "@/components/ui/button"
 
 export const metadata: Metadata = generateMetadata({
@@ -13,13 +13,12 @@ export const metadata: Metadata = generateMetadata({
 const structuredData = {
   "@context": "https://schema.org",
   "@type": "WebPage",
-  mainEntity: {
-    "@type": "PrivacyPolicy",
-    name: "KanbanThing Privacy Policy",
-    publisher: {
-      "@type": "Organization",
-      name: "KanbanThing",
-    },
+  name: "KanbanThing Privacy Policy",
+  url: `${baseUrl}/privacy`,
+  publisher: {
+    "@type": "Organization",
+    name: "KanbanThing",
+    url: baseUrl,
   },
 }
 

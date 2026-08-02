@@ -51,7 +51,7 @@ export default function RetrospectiveBoardGuide() {
         and no owned actions has not finished.
       </p>
 
-      <h2>Setting the board up</h2>
+      <h2>Setting up the retrospective board</h2>
       <p>
         Create a board, name it after the sprint or the date, and pick a
         14-day lifespan rather than the 60-day default. That is not a
