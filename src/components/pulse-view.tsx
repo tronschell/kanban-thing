@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { differenceInDays, formatDistanceToNow } from 'date-fns'
+import { differenceInDays, format, formatDistanceToNow } from 'date-fns'
 import { ArrowRight, Check, Copy } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
@@ -87,7 +87,7 @@ function Section({ title, count, children }: {
   return (
     <section aria-label={title} className="mt-4">
       <h2 className="mb-1.5 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted">
-        {title}
+        {title}{' '}
         <span className="text-2xs font-mono tabular-nums text-subtle">{count}</span>
       </h2>
       <ul className="flex flex-col gap-1.5">{children}</ul>
@@ -192,7 +192,7 @@ export default function PulseView({ boardId }: { boardId: string }) {
     // "Right-most" is only meaningful once a board has somewhere for work to land.
     const finalColumn = ordered.length >= 2 ? ordered[ordered.length - 1] : null
     const nameOf = new Map(columns.map(column => [column.id, column.name]))
-    const today = new Date().toISOString().slice(0, 10)
+    const today = format(new Date(), 'yyyy-MM-dd')
 
     const stuck: StuckRow[] = cards
       .filter(card => !backlogIds.has(card.column_id) && card.column_id !== finalColumn?.id)
@@ -202,7 +202,7 @@ export default function PulseView({ boardId }: { boardId: string }) {
         column: nameOf.get(card.column_id) ?? '',
         days: differenceInDays(now, lastColumnChange(card)),
       }))
-      .filter(row => row.days > STUCK_DAYS)
+      .filter(row => row.days >= STUCK_DAYS)
       .sort((a, b) => b.days - a.days)
 
     const late: LateRow[] = cards
@@ -227,9 +227,18 @@ export default function PulseView({ boardId }: { boardId: string }) {
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
 
     const landed: LandedRow[] = finalColumn
-      ? recentMoves
-          .filter(({ move }) => move.to_column === finalColumn.name)
-          .map(({ card, move }) => ({ id: card.id, title: card.title, timestamp: move.timestamp }))
+      ? cards
+          .filter(
+            card =>
+              card.column_id === finalColumn.id &&
+              card.card_history.length > 0 &&
+              lastColumnChange(card) >= windowStart
+          )
+          .map(card => ({
+            id: card.id,
+            title: card.title,
+            timestamp: new Date(lastColumnChange(card)).toISOString(),
+          }))
           .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
       : []
 
