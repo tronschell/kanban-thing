@@ -9,6 +9,24 @@ insert into global_stats (boards_created, cards_created, cards_moved)
 select 0, 0, 0
 where not exists (select 1 from global_stats);
 
+-- Counters already increment from a trigger that predates version control, so adopt it here
+-- rather than installing a second one alongside it and double-counting every row.
+do $$
+declare existing record;
+begin
+  for existing in
+    select tg.tgname, tg.tgrelid::regclass::text as on_table
+    from pg_trigger tg
+    join pg_proc p on p.oid = tg.tgfoid
+    where not tg.tgisinternal
+      and p.prosrc ilike '%global_stats%'
+      and tg.tgrelid in ('boards'::regclass, 'cards'::regclass, 'card_history'::regclass)
+  loop
+    raise notice 'dropping pre-existing stats trigger % on %', existing.tgname, existing.on_table;
+    execute format('drop trigger if exists %I on %s', existing.tgname, existing.on_table);
+  end loop;
+end $$;
+
 create or replace function bump_global_stat(column_name text, amount bigint)
 returns void
 language plpgsql

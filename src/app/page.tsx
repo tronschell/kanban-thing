@@ -9,11 +9,13 @@ import {
   Link2,
   Lock,
   MousePointerClick,
-  Timer,
+  Palette,
 } from "lucide-react"
 import { siBluesky, siX } from "simple-icons"
 import { Button } from "@/components/ui"
+import { DemoBoard } from "@/components/demo-board"
 import { readLibrary } from "@/lib/board-library"
+import { FONT_STACKS, PRESETS } from "@/lib/themes"
 
 const structuredData = {
   "@context": "https://schema.org",
@@ -31,9 +33,10 @@ const structuredData = {
   featureList: [
     "No sign-up required",
     "Always free",
-    "2-month board lifespan",
+    "Boards last up to 60 days",
     "Shareable board links",
     "Drag and drop interface",
+    "Six interface themes",
   ],
   author: {
     "@type": "Person",
@@ -57,7 +60,9 @@ export default function Home() {
       <main className="flex-1">
         <Hero />
         <HowItWorks />
+        <Appearances />
         <Features />
+        <Lifespan />
         <ClosingCta />
       </main>
       <SiteFooter />
@@ -105,7 +110,7 @@ function SiteHeader() {
           {savedBoards > 0 && (
             <Link
               href="/boards"
-              className="focus-ring rounded text-sm text-muted transition-colors duration-fast hover:text-fg"
+              className="focus-ring whitespace-nowrap rounded text-sm text-muted transition-colors duration-fast hover:text-fg"
             >
               My boards{" "}
               <span className="font-mono tabular-nums text-subtle">({savedBoards})</span>
@@ -113,7 +118,7 @@ function SiteHeader() {
           )}
           <Link
             href="/about"
-            className="focus-ring rounded text-sm text-muted transition-colors duration-fast hover:text-fg"
+            className="focus-ring hidden rounded text-sm text-muted transition-colors duration-fast hover:text-fg sm:inline"
           >
             About
           </Link>
@@ -128,23 +133,30 @@ function SiteHeader() {
 
 function Hero() {
   return (
-    <section className="mx-auto w-full max-w-4xl px-6 pb-16 pt-16 md:pt-24">
-      <h1 className="text-4xl font-semibold text-fg md:text-5xl">
-        A shared kanban board, without the sign-up
-      </h1>
-      <p className="mt-5 max-w-[62ch] text-md text-muted">
-        Give your board a name, pick a password, and you get a link. Send it to
-        anyone and they can open the same board and drag the same cards. No
-        account, no email, no install, no trial.
-      </p>
-      <div className="mt-8 flex flex-wrap items-center gap-3">
-        <Button asChild variant="primary" size="lg">
-          <Link href="/onboarding">Create a board</Link>
-        </Button>
-        <Button asChild variant="ghost" size="lg">
-          <Link href="/about">What it does</Link>
-        </Button>
+    <section className="pb-16 pt-14 md:pt-20">
+      <div className="mx-auto w-full max-w-4xl px-6">
+        <h1 className="text-4xl font-semibold text-fg md:text-5xl">
+          A shared kanban board, without the sign-up
+        </h1>
+        <p className="mt-5 max-w-[58ch] text-md text-muted">
+          Name a board, set a password, get a link. Send the link to anyone and
+          they open the same board and drag the same cards. No account, no
+          email, no install, no trial.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <Button asChild variant="primary" size="lg">
+            <Link href="/onboarding">Create a board</Link>
+          </Button>
+          <Button asChild variant="ghost" size="lg">
+            <Link href="/about">What it does</Link>
+          </Button>
+        </div>
       </div>
+
+      <div className="mt-12 md:mt-16">
+        <DemoBoard />
+      </div>
+
       <UsageCounts />
     </section>
   )
@@ -171,7 +183,7 @@ function UsageCounts() {
   if (!stats) return null
 
   return (
-    <p className="mt-8 text-xs text-subtle">
+    <p className="mx-auto mt-8 w-full max-w-4xl px-6 text-xs text-subtle">
       <Count value={stats.boardsCreated} /> boards created,{" "}
       <Count value={stats.cardsCreated} /> cards written,{" "}
       <Count value={stats.cardsMoved} /> cards moved so far.
@@ -190,7 +202,7 @@ function Count({ value }: { value: number }) {
 function HowItWorks() {
   return (
     <section aria-labelledby="how-it-works" className="border-t border-subtle">
-      <div className="mx-auto w-full max-w-4xl px-6 py-16">
+      <div className="mx-auto grid w-full max-w-4xl gap-8 px-6 py-16 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:gap-12">
         <Reveal>
           <h2
             id="how-it-works"
@@ -198,7 +210,12 @@ function HowItWorks() {
           >
             Three steps, one link
           </h2>
-          <ol className="mt-8 divide-y divide-subtle border-y border-subtle">
+          <p className="mt-3 text-sm text-muted">
+            About ten seconds from an empty tab to a board your team can open.
+          </p>
+        </Reveal>
+        <Reveal>
+          <ol className="divide-y divide-subtle border-y border-subtle">
             <Step number={1} title="Name the board">
               A board name and a password is the whole setup. Nothing is asked
               of you that you would have to remember later.
@@ -240,6 +257,71 @@ function Step({
   )
 }
 
+function Appearances() {
+  return (
+    <section aria-labelledby="appearances" className="border-t border-subtle">
+      <div className="mx-auto w-full max-w-4xl px-6 py-16">
+        <Reveal>
+          <h2
+            id="appearances"
+            className="text-2xl font-semibold text-fg md:text-3xl"
+          >
+            Six interfaces for the same board
+          </h2>
+          <p className="mt-4 max-w-[62ch] text-md text-muted">
+            The board above is drawn by whichever of these you pick, from
+            Appearance in the board menu. Each one changes the type, the colour,
+            the corner radius and the shape of the cards and columns. Tune the
+            colours and fonts afterwards if you want to. The choice is kept in
+            your browser.
+          </p>
+          <ul className="mt-10 grid gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+            {PRESETS.map((preset) => (
+              <li key={preset.id}>
+                <span
+                  className="flex h-24 flex-col justify-between border border-subtle p-3"
+                  style={{
+                    backgroundColor: preset.base.canvas,
+                    borderRadius: `${preset.base.radius + 2}px`,
+                  }}
+                >
+                  <span
+                    className="text-md"
+                    style={{
+                      color: preset.base.fg,
+                      fontFamily: FONT_STACKS[preset.base.fontSans].stack,
+                      fontWeight: preset.base.weightHeading,
+                    }}
+                  >
+                    {preset.name}
+                  </span>
+                  <span aria-hidden className="flex items-center gap-1.5">
+                    <span
+                      className="h-2 w-14"
+                      style={{
+                        backgroundColor: preset.base.accent,
+                        borderRadius: `${preset.base.radius}px`,
+                      }}
+                    />
+                    <span
+                      className="h-2 w-7"
+                      style={{
+                        backgroundColor: preset.base.support,
+                        borderRadius: `${preset.base.radius}px`,
+                      }}
+                    />
+                  </span>
+                </span>
+                <p className="mt-3 text-sm text-muted">{preset.tagline}</p>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
+      </div>
+    </section>
+  )
+}
+
 function Features() {
   return (
     <section aria-labelledby="features" className="border-t border-subtle">
@@ -276,9 +358,9 @@ function Features() {
               Boards are not listed or searchable, and the password is set at
               creation, so a leaked link alone is not enough.
             </Feature>
-            <Feature icon={<Timer />} title="Two month lifespan">
-              Boards are removed two months after they are created. Nothing
-              accumulates and there is no subscription to cancel.
+            <Feature icon={<Palette />} title="Six interfaces">
+              Switch the whole board between six looks, then change the
+              colours, fonts, weights and corner radius to taste.
             </Feature>
           </dl>
         </Reveal>
@@ -312,6 +394,35 @@ function Feature({
   )
 }
 
+function Lifespan() {
+  return (
+    <section aria-labelledby="lifespan" className="border-t border-subtle">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-6 py-16 sm:flex-row sm:items-baseline sm:gap-10">
+        <p
+          aria-hidden
+          className="font-mono text-5xl leading-none tabular-nums text-fg"
+        >
+          60
+        </p>
+        <div>
+          <h2
+            id="lifespan"
+            className="text-2xl font-semibold text-fg md:text-3xl"
+          >
+            Sixty days, then the board is deleted
+          </h2>
+          <p className="mt-4 max-w-[62ch] text-md text-muted">
+            Every board is removed 60 days after it is created. That is the
+            longest a board can live and there is no way to push it back, so
+            export anything you still need as JSON or CSV from the board menu,
+            or start a fresh board and carry the cards over.
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function ClosingCta() {
   return (
     <section aria-labelledby="get-started" className="border-t border-subtle">
@@ -324,8 +435,9 @@ function ClosingCta() {
             Free, and it stays free
           </h2>
           <p className="mt-4 max-w-[62ch] text-md text-muted">
-            There is no paid tier to upgrade to and nothing to sign. Copy out
-            anything you want to keep before the two months are up.
+            There is no paid tier to upgrade to and nothing to sign. Open a
+            board, send the link, and copy out anything you want to keep before
+            the 60 days are up.
           </p>
           <Button asChild variant="primary" size="lg" className="mt-8">
             <Link href="/onboarding">Create a board</Link>
