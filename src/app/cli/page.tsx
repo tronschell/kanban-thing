@@ -122,7 +122,7 @@ export default function CliPage() {
             Sign in with the board link you already share with your team. The
             board password is asked for once and kept on this machine.
           </p>
-          <Code>{`kanban login https://kanbanthing.com/board?id=<board-id>
+          <Code>{`kanban login https://www.kanbanthing.com/board?id=<board-id>
 kanban add "Write the spec"
 kanban ls
 kanban mv "Write the spec" Done`}</Code>
