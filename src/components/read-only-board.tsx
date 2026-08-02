@@ -109,6 +109,7 @@ export default function ReadOnlyBoard({
   const supabase = useMemo(createClient, [])
   const [board, setBoard] = useState<SharedBoard | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const hoursLeft = useHoursLeft(board?.board.expires_at ?? null)
 
   useEffect(() => {
     let cancelled = false
@@ -170,8 +171,6 @@ export default function ReadOnlyBoard({
     .sort((a, b) => a.id.localeCompare(b.id))[0]
   const columns = board.columns.filter((column) => column.name !== BACKLOG_NAME)
   const cardsIn = (columnId: string) => board.cards.filter((card) => card.column_id === columnId)
-  const hoursLeft = useHoursLeft(board.board.expires_at)
-
   return (
     <div className="flex h-full flex-col overflow-hidden bg-canvas">
       <Navbar

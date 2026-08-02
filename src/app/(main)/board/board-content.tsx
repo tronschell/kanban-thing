@@ -26,6 +26,7 @@ import {
   TimelineView,
   ViewSwitcher,
 } from '@/components'
+import BoardBrief from '@/components/board-brief'
 import CardDetail from '@/components/card-detail'
 import CardEditor from '@/components/card-editor'
 import ColumnEditor from '@/components/column-editor'
@@ -615,6 +616,8 @@ function EditableBoard() {
         <ViewSwitcher currentView={currentView} onViewChange={setCurrentView} boardId={boardId} />
       </div>
 
+      <BoardBrief boardId={boardId} />
+
       {errorMessage && (
         <div className="px-3 pb-2">
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage(null)} />
@@ -672,7 +675,12 @@ function EditableBoard() {
         </div>
       )}
 
-<<<<<<< HEAD
+      {!isLoading && currentView === 'pulse' && (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
+          <PulseView boardId={boardId} />
+        </div>
+      )}
+
       {detailCard && (
         <CardDetail
           card={detailCard}
@@ -688,12 +696,6 @@ function EditableBoard() {
           }}
           onSaveDescription={saveCardDescription}
         />
-=======
-      {!isLoading && currentView === 'pulse' && (
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
-          <PulseView boardId={boardId} />
-        </div>
->>>>>>> worktree-agent-a8f7ef62b45136550
       )}
 
       {cardEditor && (
