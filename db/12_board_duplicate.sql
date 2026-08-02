@@ -26,7 +26,7 @@ begin
   insert into boards (name, password_hash, expires_at)
   select coalesce(nullif(btrim(new_name), ''), source.name || ' (copy)'),
          source.password_hash,
-         now() + make_interval(days => greatest(1, least(90, coalesce(days_param, 60))))
+         now() + make_interval(days => greatest(1, least(60, coalesce(days_param, 60))))
   from boards source
   where source.id = board_id_param
   returning id into new_board_id;
