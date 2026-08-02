@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { LibraryBig, Plus, Terminal as TerminalIcon } from 'lucide-react'
+import { LibraryBig, Plus, Terminal as TerminalIcon, TriangleAlert } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui'
 import { BoardExpirationTimer } from '@/components/board-expiration-timer'
 import { CreateModal } from '@/components/create-modal'
 import ShareLink from '@/components/share-link'
 import { TerminalInterface } from '@/components/terminal-interface'
 import { BoardMenu } from '@/components/navbar/board-menu'
+import { BoardLifespanModal } from '@/components/navbar/board-lifespan-modal'
 import {
   DeleteBoardModal,
   RenameBoardModal,
@@ -17,7 +18,8 @@ import {
 import { ThemePicker } from '@/components/theme-picker'
 import { exportBoardAsCsv, exportBoardAsJson } from '@/components/navbar/board-export'
 import { runBoardCommand } from '@/components/navbar/board-commands'
-import { useBoardExpiration } from '@/hooks/use-board-expiration'
+import { useBoardExpiration, useHoursLeft } from '@/hooks/use-board-expiration'
+import { EXPIRY_WARNING_HOURS, expiryWarningText } from '@/lib/board-lifespan'
 import { createClient } from '@/lib/supabase/client'
 import { ensureBoardPassword } from '@/lib/board-writes'
 import { Card, Column } from '@/types'
@@ -37,7 +39,7 @@ interface NavbarProps {
   onError?: (message: string) => void
 }
 
-type Modal = 'create' | 'terminal' | 'rename' | 'password' | 'delete' | 'appearance' | null
+type Modal = 'create' | 'terminal' | 'rename' | 'password' | 'lifespan' | 'delete' | 'appearance' | null
 
 export default function Navbar({
   boardId,
@@ -59,6 +61,7 @@ export default function Navbar({
 
   const displayName = readOnly ? boardName ?? '' : loadedName
   const displayExpiresAt = readOnly ? expiresAt : loadedExpiresAt
+  const hoursLeft = useHoursLeft(displayExpiresAt ?? null)
 
   useEffect(() => {
     if (!boardId || readOnly) return
@@ -162,9 +165,13 @@ export default function Navbar({
             <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{displayName}</h1>
 
             <div className="flex shrink-0 items-center gap-1">
-              {displayExpiresAt && (
-                <span className="hidden md:inline-flex">
-                  <BoardExpirationTimer expiresAt={displayExpiresAt} />
+              {hoursLeft !== null && (
+                <span
+                  className={
+                    hoursLeft <= EXPIRY_WARNING_HOURS ? 'inline-flex' : 'hidden md:inline-flex'
+                  }
+                >
+                  <BoardExpirationTimer hoursLeft={hoursLeft} />
                 </span>
               )}
               {!readOnly && (
@@ -190,6 +197,7 @@ export default function Navbar({
                     onAppearance={() => setOpenModal('appearance')}
                     onRename={() => setOpenModal('rename')}
                     onSetPassword={() => setOpenModal('password')}
+                    onLifespan={() => setOpenModal('lifespan')}
                     onExportJson={() => exportBoardAsJson(boardId)}
                     onExportCsv={() => exportBoardAsCsv(boardId)}
                     onDelete={() => setOpenModal('delete')}
@@ -200,6 +208,22 @@ export default function Navbar({
           </>
         )}
       </header>
+
+      {boardId && hoursLeft !== null && hoursLeft < 24 && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 border-b border-danger bg-danger-soft px-3 py-2"
+        >
+          <TriangleAlert aria-hidden className="size-4 shrink-0 text-danger" />
+          <p className="min-w-0 flex-1 text-sm text-danger">
+            {expiryWarningText(hoursLeft)} It cannot be renewed, so export it now or duplicate it
+            into a fresh board.
+          </p>
+          <Button size="sm" onClick={() => exportBoardAsJson(boardId)}>
+            Export JSON
+          </Button>
+        </div>
+      )}
 
       <ThemePicker open={openModal === 'appearance'} onClose={closeModal} />
 
@@ -240,6 +264,12 @@ export default function Navbar({
             open={openModal === 'password'}
             onClose={closeModal}
             boardId={boardId}
+          />
+
+          <BoardLifespanModal
+            open={openModal === 'lifespan'}
+            onClose={closeModal}
+            expiresAt={displayExpiresAt ?? null}
           />
 
           <DeleteBoardModal open={openModal === 'delete'} onClose={closeModal} boardId={boardId} />

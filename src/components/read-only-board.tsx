@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Eye } from 'lucide-react'
 import { Badge, Button, Skeleton } from '@/components/ui'
 import { BoardExpirationTimer } from '@/components/board-expiration-timer'
+import { useHoursLeft } from '@/hooks/use-board-expiration'
 import Navbar from '@/components/navbar'
 import { createClient } from '@/lib/supabase/client'
 import { formatDueDate, isDueSoon } from '@/lib/date-utils'
@@ -169,6 +170,7 @@ export default function ReadOnlyBoard({
     .sort((a, b) => a.id.localeCompare(b.id))[0]
   const columns = board.columns.filter((column) => column.name !== BACKLOG_NAME)
   const cardsIn = (columnId: string) => board.cards.filter((card) => card.column_id === columnId)
+  const hoursLeft = useHoursLeft(board.board.expires_at)
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-canvas">
@@ -186,7 +188,7 @@ export default function ReadOnlyBoard({
           &middot;
         </span>
         <p className="min-w-0 truncate text-xs font-medium text-fg">{board.board.name}</p>
-        <BoardExpirationTimer expiresAt={board.board.expires_at} />
+        {hoursLeft !== null && <BoardExpirationTimer hoursLeft={hoursLeft} />}
       </div>
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-3 py-3 scrollbar-thin">
