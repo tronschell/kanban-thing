@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.kanbanthing/kanban",
+  "title": "KanbanThing",
+  "description": "Create and drive KanbanThing kanban boards. No account, no API key, board link required.",
+  "version": "0.1.0",
+  "websiteUrl": "https://www.kanbanthing.com/cli",
+  "repository": {
+    "url": "https://github.com/tronschell/kanban-thing",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://www.kanbanthing.com/mcp"
+    }
+  ]
+}

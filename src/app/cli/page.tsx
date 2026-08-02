@@ -8,9 +8,9 @@ import { CliTable } from "@/components/cli-table"
 import { CopyButton } from "@/components/copy-button"
 
 export const metadata: Metadata = generateMetadata({
-  title: "KanbanThing CLI - Drive a Kanban Board From the Terminal",
+  title: "KanbanThing CLI and MCP Server - Drive a Kanban Board From the Terminal",
   description:
-    "kanbanthing is a command line client for KanbanThing. Create boards, add, list and move cards from a shell or a script, with --json output for AI agents.",
+    "kanbanthing is a command line client for KanbanThing. Create boards, add, list and move cards from a shell or a script, or connect Claude, ChatGPT, Cursor and VS Code to the hosted MCP server at kanbanthing.com/mcp.",
   path: "/cli",
 })
 
@@ -61,6 +61,17 @@ const FLAGS: [string, string][] = [
   ["--no-color", "Plain output with no ANSI escapes"],
   ["--help", "Usage for the CLI, or for the command in front of it"],
   ["--version", "Print the version and exit"],
+]
+
+const MCP_TOOLS: [string, string][] = [
+  ["create_board", "Create a board and return its id, share URL and password"],
+  ["get_board", "The board's name, expiry, columns and card counts"],
+  ["list_columns", "The columns on a board, left to right, with their ids"],
+  ["list_cards", "The cards on a board, or only those in one column"],
+  ["create_card", "Add a card to a column"],
+  ["move_card", "Move a card to another column"],
+  ["update_card", "Change a card's title, description, due date or colour"],
+  ["delete_card", "Delete a card"],
 ]
 
 const EXIT_CODES: [string, string][] = [
@@ -134,6 +145,110 @@ kanban ls
 kanban mv "Write the spec" Done`}</Code>
         </Section>
 
+        <Section title="Use it from an AI agent">
+          <p className="text-md text-muted">
+            KanbanThing also hosts an MCP server, so an agent can drive a board
+            without the CLI. It speaks Streamable HTTP at{" "}
+            <code className="font-mono text-fg">
+              https://www.kanbanthing.com/mcp
+            </code>
+            , needs no account and no API key, and works with any MCP client.
+            Every tool takes a board id or board URL: there is deliberately no
+            way to list or search boards, so paste the board link into the chat
+            and keep the password to hand.
+          </p>
+
+          <Subsection title="Claude Code">
+            <Code>{`claude mcp add --transport http kanbanthing https://www.kanbanthing.com/mcp`}</Code>
+            <p className="mt-3 text-md text-muted">
+              Add <code className="font-mono text-fg">--scope user</code> to make
+              it available in every project instead of only this one.
+            </p>
+          </Subsection>
+
+          <Subsection title="Claude web and desktop">
+            <p className="text-md text-muted">
+              Open{" "}
+              <a
+                href="https://claude.ai/customize/connectors"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="focus-ring rounded text-accent underline underline-offset-4"
+              >
+                Customize &rarr; Connectors
+              </a>
+              , click <strong className="font-medium text-fg">+</strong>, choose{" "}
+              <strong className="font-medium text-fg">
+                Add custom connector
+              </strong>
+              , and paste the URL below. Custom connectors work on Free, Pro,
+              Max, Team and Enterprise; on Team and Enterprise an owner adds them
+              from Admin settings &rarr; Connectors.
+            </p>
+            <Code>https://www.kanbanthing.com/mcp</Code>
+            <p className="mt-3 text-md text-muted">
+              Or open{" "}
+              <a
+                href="https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=KanbanThing&connectorUrl=https%3A%2F%2Fwww.kanbanthing.com%2Fmcp"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="focus-ring rounded text-accent underline underline-offset-4"
+              >
+                this install link
+              </a>
+              , which fills the form in for you. You still confirm the connector
+              yourself.
+            </p>
+          </Subsection>
+
+          <Subsection title="ChatGPT">
+            <p className="text-md text-muted">
+              MCP servers are added in developer mode, on the web only. Turn it
+              on under Settings &rarr; Apps &rarr; Advanced settings, then go to
+              Apps &rarr; Create and give it the endpoint below. Full read and
+              write MCP support is a beta limited to Business, Enterprise and Edu
+              plans; Pro can connect a server with read-only permissions.
+            </p>
+            <Code>https://www.kanbanthing.com/mcp</Code>
+          </Subsection>
+
+          <Subsection title="Cursor">
+            <p className="text-md text-muted">
+              Put this in <code className="font-mono text-fg">.cursor/mcp.json</code>{" "}
+              for one project, or{" "}
+              <code className="font-mono text-fg">~/.cursor/mcp.json</code> for
+              all of them.
+            </p>
+            <Code>{`{
+  "mcpServers": {
+    "kanbanthing": {
+      "url": "https://www.kanbanthing.com/mcp"
+    }
+  }
+}`}</Code>
+          </Subsection>
+
+          <Subsection title="VS Code">
+            <p className="text-md text-muted">
+              Put this in <code className="font-mono text-fg">.vscode/mcp.json</code>,
+              or run <strong className="font-medium text-fg">MCP: Add Server</strong>{" "}
+              from the command palette.
+            </p>
+            <Code>{`{
+  "servers": {
+    "kanbanthing": {
+      "type": "http",
+      "url": "https://www.kanbanthing.com/mcp"
+    }
+  }
+}`}</Code>
+          </Subsection>
+
+          <Subsection title="Tools">
+            <CliTable heading="Tool" rows={MCP_TOOLS} />
+          </Subsection>
+        </Section>
+
         <Section title="Commands">
           <CliTable heading="Command" rows={COMMANDS} filterLabel="Filter commands" />
           <p className="mt-3 text-xs text-subtle">
@@ -147,7 +262,7 @@ kanban mv "Write the spec" Done`}</Code>
           <CliTable heading="Flag" rows={FLAGS} />
         </Section>
 
-        <Section title="For AI agents">
+        <Section title="Scripting the CLI">
           <p className="text-md text-muted">
             Add <code className="font-mono text-fg">--json</code> to any command
             and it prints a JSON object instead of formatted text. To sign in
@@ -199,6 +314,15 @@ function Section({
       <h2 className="text-2xl font-semibold text-fg md:text-3xl">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
+  )
+}
+
+function Subsection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="mt-8">
+      <h3 className="text-lg font-semibold text-fg">{title}</h3>
+      <div className="mt-2">{children}</div>
+    </div>
   )
 }
 
