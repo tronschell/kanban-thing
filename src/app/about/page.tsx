@@ -4,7 +4,7 @@ import { generateMetadata } from "@/lib/metadata"
 import { Button } from "@/components/ui/button"
 
 export const metadata: Metadata = generateMetadata({
-  title: "About KanbanThing - Simple Kanban Board Tool",
+  title: "About - Simple Kanban Board Tool",
   description:
     "Learn about KanbanThing, a simple and efficient Kanban board application designed to help individuals and teams organize their work effectively.",
   path: "/about",
@@ -66,8 +66,8 @@ export default function AboutPage() {
           <h2>What it does</h2>
           <ul>
             <li>
-              Columns you can add, rename and reorder, starting from To Do, In
-              Progress and Done
+              <Link href="/guides/kanban-columns">Columns</Link> you can add,
+              rename and reorder, starting from To Do, In Progress and Done
             </li>
             <li>
               Cards with a description, a color and a due date, moved by drag
@@ -78,17 +78,25 @@ export default function AboutPage() {
               A calendar view of the same cards by due date, and a timeline
               view by most recent activity
             </li>
-            <li>A password on every board, set when the board is created</li>
+            <li>
+              A password on every board, set when the board is created, plus a{" "}
+              <Link href="/guides/read-only-board-links">read-only link</Link>{" "}
+              for people who should see it but not change it
+            </li>
             <li>Light and dark appearance, following your system setting</li>
           </ul>
 
           <h2>What it does not do</h2>
           <p>
             There are no accounts, no teams, no permissions and no paid tier.
-            Boards are deleted 60 days after they are created, so anything you
-            want to keep should be copied out before then. If you need
-            long-lived project history, KanbanThing is the wrong tool and that
-            is on purpose.
+            Boards are deleted up to 60 days after they are created, so
+            anything you want to keep should be copied out before then. If you
+            need long-lived project history, KanbanThing is the wrong tool and that
+            is on purpose. It suits work with an end in sight: a{" "}
+            <Link href="/guides/retrospective-board">retrospective</Link>, a
+            short project, or a{" "}
+            <Link href="/guides/personal-kanban">personal board</Link> you start
+            again every few weeks.
           </p>
 
           <h2>How it is built</h2>

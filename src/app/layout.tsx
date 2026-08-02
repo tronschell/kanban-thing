@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import GoogleAnalytics from '@/components/google-analytics'
 import { themeBootstrapScript } from '@/lib/themes'
+import { baseUrl } from '@/lib/metadata'
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -22,14 +23,10 @@ export const metadata: Metadata = {
     default: 'KanbanThing - Simple Free Kanban Board Tool'
   },
   description: 'A simple, no-signup, and free Kanban board application designed to help individuals and teams organize their work effectively. KanbanThing can be used for project management, team collaboration, or as a simple task list.',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://kanbanthing.com'),
+  metadataBase: new URL(baseUrl),
   openGraph: {
     type: 'website',
     siteName: 'KanbanThing',
-  },
-  robots: {
-    index: true,
-    follow: true,
   },
   icons: {
     icon: '/favicon.ico',
