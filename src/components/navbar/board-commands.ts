@@ -72,6 +72,11 @@ const cardsTitled = (cards: SnapshotCard[], title: string) =>
 const localDay = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
+const isRealDay = (day: string) => {
+  const [year, month, date] = day.split('-').map(Number)
+  return localDay(new Date(year, month - 1, date)) === day
+}
+
 const lastActivity = (card: SnapshotCard) =>
   card.card_history.reduce(
     (latest, entry) => Math.max(latest, new Date(entry.timestamp).getTime()),
@@ -95,6 +100,7 @@ export async function runBoardCommand(
   const action = ALIASES[words[0].toLowerCase()] ?? words[0].toLowerCase()
 
   if (action === 'help') return ok(HELP)
+  if (action === 'clear') return ok('')
   if (!KNOWN.includes(action)) return failure('Unknown command. Type help for the list.')
 
   const supabase = createClient()
@@ -131,9 +137,12 @@ export async function runBoardCommand(
 
       const description = input.match(/--desc\s+"([^"]+)"/i)?.[1] ?? null
       const color = input.match(/--color\s+(#[0-9a-f]{6}|#[0-9a-f]{3})\b/i)?.[1] ?? null
+      if (!color && /--color\b/i.test(input)) return failure('Usage: --color #hex')
 
       const dueDay = input.match(/--due\s+(\d{4}-\d{2}-\d{2})\b/)?.[1] ?? null
-      if (!dueDay && /--due\b/i.test(input)) return failure('Usage: --due YYYY-MM-DD')
+      if ((!dueDay || !isRealDay(dueDay)) && /--due\b/i.test(input)) {
+        return failure('Usage: --due YYYY-MM-DD')
+      }
 
       const { data: created, error: createError } = await supabase
         .from('cards')
@@ -155,7 +164,7 @@ export async function runBoardCommand(
     }
 
     if (action === 'move') {
-      const toAt = words.findIndex((word) => word.toLowerCase() === 'to')
+      const toAt = words.map((word) => word.toLowerCase()).lastIndexOf('to')
       if (toAt < 2 || toAt === words.length - 1) {
         return failure('Usage: move {title} to {column}')
       }
@@ -175,11 +184,13 @@ export async function runBoardCommand(
       if (card.column_id === column.id) return ok(`"${card.title}" is already in ${column.name}`)
 
       const position = nextPosition(snapshot, column.id)
-      const { error: moveError } = await supabase
+      const { data: moved, error: moveError } = await supabase
         .from('cards')
         .update({ column_id: column.id, position })
         .eq('id', card.id)
+        .select('id')
       if (moveError) throw moveError
+      if (!moved?.length) return failure('The move was rejected. Reload and try again.')
 
       await recordCardHistory(
         supabase,
@@ -204,8 +215,13 @@ export async function runBoardCommand(
         return failure(`${matches.length} cards match "${title}". Use a longer title.`)
       }
 
-      const { error: deleteError } = await supabase.from('cards').delete().eq('id', matches[0].id)
+      const { data: deleted, error: deleteError } = await supabase
+        .from('cards')
+        .delete()
+        .eq('id', matches[0].id)
+        .select('id')
       if (deleteError) throw deleteError
+      if (!deleted?.length) return failure('The delete was rejected. Reload and try again.')
 
       removeCard(ctx, matches[0])
 

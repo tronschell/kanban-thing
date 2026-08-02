@@ -17,6 +17,3 @@ export const LABEL_COLOR_NAMES: Record<(typeof LABEL_COLORS)[number], string> = 
   '#8e4ec6': 'Violet',
   '#d6409f': 'Pink',
 }
-
-export const randomLabelColor = () =>
-  LABEL_COLORS[Math.floor(Math.random() * LABEL_COLORS.length)]
