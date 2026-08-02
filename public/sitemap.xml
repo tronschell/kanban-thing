@@ -11,6 +11,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://kanbanthing.com/cli</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://kanbanthing.com/terms</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>

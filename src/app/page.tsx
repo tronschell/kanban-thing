@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { siBluesky, siX } from "simple-icons"
 import { Button } from "@/components/ui"
+import { CliBanner } from "@/components/cli-banner"
 import { DemoBoard } from "@/components/demo-board"
 import { readLibrary } from "@/lib/board-library"
 import { FONT_STACKS, PRESETS } from "@/lib/themes"
@@ -59,6 +60,7 @@ export default function Home() {
       <SiteHeader />
       <main className="flex-1">
         <Hero />
+        <CliBanner />
         <HowItWorks />
         <Appearances />
         <Features />
@@ -116,6 +118,12 @@ function SiteHeader() {
               <span className="font-mono tabular-nums text-subtle">({savedBoards})</span>
             </Link>
           )}
+          <Link
+            href="/cli"
+            className="focus-ring hidden rounded text-sm text-muted transition-colors duration-fast hover:text-fg sm:inline"
+          >
+            CLI
+          </Link>
           <Link
             href="/about"
             className="focus-ring hidden rounded text-sm text-muted transition-colors duration-fast hover:text-fg sm:inline"
@@ -465,6 +473,7 @@ function SiteFooter() {
         </p>
         <nav aria-label="Footer" className="flex items-center gap-5">
           <FooterLink href="/about">About</FooterLink>
+          <FooterLink href="/cli">CLI</FooterLink>
           <FooterLink href="/terms">Terms</FooterLink>
           <FooterLink href="/privacy">Privacy</FooterLink>
           <SocialLink
