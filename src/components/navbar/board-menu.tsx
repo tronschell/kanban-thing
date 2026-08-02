@@ -1,6 +1,15 @@
 'use client'
 
-import { CalendarClock, Download, Lock, MoreHorizontal, Palette, Pencil, Trash2 } from 'lucide-react'
+import {
+  CalendarClock,
+  Copy,
+  Download,
+  Lock,
+  MoreHorizontal,
+  Palette,
+  Pencil,
+  Trash2,
+} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +22,7 @@ import {
 interface BoardMenuProps {
   onAppearance: () => void
   onRename: () => void
+  onDuplicate: () => void
   onSetPassword: () => void
   onLifespan: () => void
   onExportJson: () => void
@@ -23,6 +33,7 @@ interface BoardMenuProps {
 export function BoardMenu({
   onAppearance,
   onRename,
+  onDuplicate,
   onSetPassword,
   onLifespan,
   onExportJson,
@@ -43,6 +54,10 @@ export function BoardMenu({
         <DropdownMenuItem onSelect={onRename}>
           <Pencil />
           Rename board
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onDuplicate}>
+          <Copy />
+          Duplicate board…
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onSetPassword}>
           <Lock />

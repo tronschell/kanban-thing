@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Square, SquareCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button, Input, Modal, ModalFooter } from '@/components/ui'
 
@@ -65,6 +66,123 @@ export function RenameBoardModal({
           </Button>
           <Button type="submit" variant="primary" disabled={isSaving || !name.trim()}>
             {isSaving ? 'Saving' : 'Rename'}
+          </Button>
+        </ModalFooter>
+      </form>
+    </Modal>
+  )
+}
+
+interface DuplicateBoardModalProps {
+  open: boolean
+  onClose: () => void
+  boardId: string
+  boardName: string
+}
+
+export function DuplicateBoardModal({
+  open,
+  onClose,
+  boardId,
+  boardName,
+}: DuplicateBoardModalProps) {
+  const [name, setName] = useState('')
+  const [includeCards, setIncludeCards] = useState(true)
+  const [error, setError] = useState('')
+  const [isDuplicating, setIsDuplicating] = useState(false)
+  const router = useRouter()
+  const supabase = createClient()
+
+  useEffect(() => {
+    if (!open) return
+    setName(`${boardName} (copy)`)
+    setIncludeCards(true)
+    setError('')
+  }, [open, boardName])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsDuplicating(true)
+    setError('')
+
+    const password = localStorage.getItem(`board_password_${boardId}`) ?? ''
+    const { data, error: rpcError } = await supabase.rpc('board_duplicate', {
+      board_id_param: boardId,
+      password_attempt: password,
+      new_name: name.trim(),
+      include_cards: includeCards,
+    })
+
+    const result = data as { status?: string; board_id?: string } | null
+
+    if (rpcError || !result) {
+      console.error('Error duplicating board:', rpcError)
+      setError('Could not duplicate this board. Try again.')
+      setIsDuplicating(false)
+      return
+    }
+
+    if (result.status !== 'ok' || !result.board_id) {
+      setError(
+        result.status === 'wrong_password'
+          ? 'The stored board password no longer works. Reopen the board and try again.'
+          : 'Could not duplicate this board. Try again.'
+      )
+      setIsDuplicating(false)
+      return
+    }
+
+    if (password) {
+      localStorage.setItem(`board_password_${result.board_id}`, password)
+      localStorage.setItem(`board_access_${result.board_id}`, 'true')
+    }
+
+    router.push(`/board?id=${result.board_id}`)
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Duplicate board" size="sm">
+      <form onSubmit={handleSubmit}>
+        <label
+          htmlFor="duplicate-board-name"
+          className="block text-xs font-medium text-muted mb-1.5"
+        >
+          New board name
+        </label>
+        <Input
+          id="duplicate-board-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Board name"
+          aria-invalid={Boolean(error)}
+          aria-describedby="duplicate-board-error"
+          autoFocus
+        />
+
+        <Button
+          variant="ghost"
+          role="checkbox"
+          aria-checked={includeCards}
+          onClick={() => setIncludeCards((checked) => !checked)}
+          className="mt-3 w-full justify-start px-1.5"
+        >
+          {includeCards ? <SquareCheck className="text-accent" /> : <Square />}
+          Include cards
+        </Button>
+
+        <p className="mt-3 text-xs text-subtle">
+          The copy keeps the same password and starts a fresh 60-day lifespan.
+        </p>
+        <p id="duplicate-board-error" role="alert" className="mt-1 min-h-4 text-xs text-danger">
+          {error}
+        </p>
+
+        <ModalFooter>
+          <Button variant="ghost" onClick={onClose} disabled={isDuplicating}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={isDuplicating || !name.trim()}>
+            {isDuplicating ? 'Duplicating' : 'Duplicate'}
           </Button>
         </ModalFooter>
       </form>

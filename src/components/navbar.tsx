@@ -12,6 +12,7 @@ import { BoardMenu } from '@/components/navbar/board-menu'
 import { BoardLifespanModal } from '@/components/navbar/board-lifespan-modal'
 import {
   DeleteBoardModal,
+  DuplicateBoardModal,
   RenameBoardModal,
   SetPasswordModal,
 } from '@/components/navbar/board-modals'
@@ -39,7 +40,16 @@ interface NavbarProps {
   onError?: (message: string) => void
 }
 
-type Modal = 'create' | 'terminal' | 'rename' | 'password' | 'lifespan' | 'delete' | 'appearance' | null
+type Modal =
+  | 'create'
+  | 'terminal'
+  | 'rename'
+  | 'duplicate'
+  | 'password'
+  | 'lifespan'
+  | 'delete'
+  | 'appearance'
+  | null
 
 export default function Navbar({
   boardId,
@@ -196,6 +206,7 @@ export default function Navbar({
                   <BoardMenu
                     onAppearance={() => setOpenModal('appearance')}
                     onRename={() => setOpenModal('rename')}
+                    onDuplicate={() => setOpenModal('duplicate')}
                     onSetPassword={() => setOpenModal('password')}
                     onLifespan={() => setOpenModal('lifespan')}
                     onExportJson={() => exportBoardAsJson(boardId)}
@@ -258,6 +269,13 @@ export default function Navbar({
             boardId={boardId}
             boardName={loadedName}
             onRenamed={setLoadedName}
+          />
+
+          <DuplicateBoardModal
+            open={openModal === 'duplicate'}
+            onClose={closeModal}
+            boardId={boardId}
+            boardName={displayName}
           />
 
           <SetPasswordModal
