@@ -1,4 +1,4 @@
-import { addDays, format } from 'date-fns'
+import { format } from 'date-fns'
 
 export const LIFESPAN_OPTIONS = [14, 28, 60]
 export const DEFAULT_LIFESPAN_DAYS = 60
@@ -6,10 +6,11 @@ export const EXPIRY_WARNING_HOURS = 24 * 7
 
 export const formatExpiryDate = (date: Date) => format(date, 'd MMMM yyyy')
 
-export const expiryDateFor = (days: number) => formatExpiryDate(addDays(new Date(), days))
+export const expiryDateFor = (days: number) =>
+  formatExpiryDate(new Date(Date.now() + days * 86400000))
 
 export const daysUntil = (expiresAt: string) =>
-  Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / 86400000))
+  Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 86400000))
 
 const wholeMinutes = (hoursLeft: number) => Math.max(1, Math.round(hoursLeft * 60))
 
