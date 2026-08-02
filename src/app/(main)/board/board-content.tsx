@@ -278,7 +278,7 @@ function EditableBoard() {
     dragOrigin.current = { cards, columnId: card.column_id }
   }
 
-  const handleDragOver = ({ active, over }: DragOverEvent) => {
+  const handleDragOver = ({ active, over, activatorEvent }: DragOverEvent) => {
     if (!over || active.data.current?.type !== 'card') return
 
     setCards((current) => {
@@ -286,7 +286,12 @@ function EditableBoard() {
       const to = columnOf(current, String(over.id), columnIds)
       // Same-column gaps are opened by the sortable strategy; re-splicing here would loop forever.
       if (!from || !to || from === to) return current
-      return moveCard(current, String(active.id), to, dropIndex(current, to, active, over))
+      return moveCard(
+        current,
+        String(active.id),
+        to,
+        dropIndex(current, to, active, over, activatorEvent)
+      )
     })
   }
 
@@ -296,7 +301,7 @@ function EditableBoard() {
     dragOrigin.current = null
   }
 
-  const handleDragEnd = async ({ active, over }: DragEndEvent) => {
+  const handleDragEnd = async ({ active, over, activatorEvent }: DragEndEvent) => {
     const origin = dragOrigin.current
     dragOrigin.current = null
     setActiveCardId(null)
@@ -323,7 +328,7 @@ function EditableBoard() {
       cards,
       String(active.id),
       toColumnId,
-      dropIndex(cards, toColumnId, active, over)
+      dropIndex(cards, toColumnId, active, over, activatorEvent)
     )
     setCards(next)
     await persistCards(next, origin.cards)
