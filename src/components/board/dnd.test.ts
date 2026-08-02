@@ -16,39 +16,84 @@ const card = (id: string, columnId: string, position: number): Card => ({
 
 const cards = [card('a1', 'a', 0), card('b1', 'b', 0), card('b2', 'b', 1)]
 
-const dragged = (id: string, pointerY: number, grabOffsetY: number, height: number) =>
-  ({
-    id,
-    rect: { current: { translated: { top: pointerY - grabOffsetY, height } } },
-  }) as unknown as Active
+const B1_TOP = 100
+const B1_HEIGHT = 40
+const B1_MIDPOINT = B1_TOP + B1_HEIGHT / 2
+const GRABBED_AT = 500
 
-const droppedOn = (id: string, top: number, height: number) =>
+const droppableOver = (id: string, top: number, height: number) =>
   ({ id, rect: { top, height } }) as unknown as Over
 
-const B1_TOP = 180
-const B1_HEIGHT = 38
-const B1_MIDPOINT = B1_TOP + B1_HEIGHT / 2
+const b1 = droppableOver('b1', B1_TOP, B1_HEIGHT)
+const listOfB = droppableOver('list:b', 0, 600)
+
+const activatorEvent = new MouseEvent('mousedown', { clientY: GRABBED_AT })
+
+// A card grabbed grabOffsetY below its own top starts at GRABBED_AT - grabOffsetY and
+// tracks the pointer, so its top is always pointerY - grabOffsetY.
+const grabbed = (id: string, pointerY: number, grabOffsetY: number, height: number) =>
+  ({
+    id,
+    rect: {
+      current: {
+        initial: { top: GRABBED_AT - grabOffsetY, height },
+        translated: { top: pointerY - grabOffsetY, height },
+      },
+    },
+  }) as unknown as Active
+
+const dropOnB1 = (pointerY: number, grabOffsetY: number, height: number) =>
+  dropIndex(cards, 'b', grabbed('a1', pointerY, grabOffsetY, height), b1, activatorEvent)
 
 describe('dropIndex', () => {
-  it('lands below a short target when a tall card is grabbed by its middle', () => {
-    const active = dragged('a1', B1_MIDPOINT + 11, 45, 90)
-    const over = droppedOn('b1', B1_TOP, B1_HEIGHT)
-
-    expect(dropIndex(cards, 'b', active, over)).toBe(1)
+  it('lands below b1 when a tall card grabbed by its middle is dropped on b1 lower half', () => {
+    expect(dropOnB1(B1_MIDPOINT + 8, 45, 90)).toBe(1)
   })
 
-  it('flips at the target midpoint regardless of where the card was grabbed', () => {
-    const height = 90
-    const over = droppedOn('b1', B1_TOP, B1_HEIGHT)
+  it('lands above b1 when a tall card grabbed near its top is dropped on b1 upper half', () => {
+    expect(dropOnB1(B1_MIDPOINT - 8, 0, 90)).toBe(0)
+    expect(dropOnB1(B1_MIDPOINT - 8, 5, 90)).toBe(0)
+  })
 
-    for (const grabOffsetY of [0, 10, 45, 80, 89]) {
-      const pointerFor = (draggedMidpoint: number) => draggedMidpoint + grabOffsetY - height / 2
+  it('flips at the b1 midpoint for every pointer position inside b1 and every grab offset', () => {
+    const pointers = Array.from({ length: B1_HEIGHT }, (_, offset) => B1_TOP + offset)
+    const expected = pointers.map((pointerY) => (pointerY > B1_MIDPOINT ? 1 : 0))
 
-      const below = dragged('a1', pointerFor(B1_MIDPOINT + 1), grabOffsetY, height)
-      const above = dragged('a1', pointerFor(B1_MIDPOINT - 1), grabOffsetY, height)
+    for (const height of [40, 90]) {
+      for (let grabOffsetY = 0; grabOffsetY < height; grabOffsetY++) {
+        const indices = pointers.map((pointerY) => dropOnB1(pointerY, grabOffsetY, height))
 
-      expect(dropIndex(cards, 'b', below, over)).toBe(1)
-      expect(dropIndex(cards, 'b', above, over)).toBe(0)
+        expect({ height, grabOffsetY, indices }).toEqual({ height, grabOffsetY, indices: expected })
+      }
     }
+  })
+
+  it('appends when the drop target is the column list rather than a card', () => {
+    expect(
+      dropIndex(cards, 'b', grabbed('a1', 300, 20, 90), listOfB, activatorEvent)
+    ).toBe(2)
+  })
+
+  it('keeps a card in place when the column list is the drop target', () => {
+    expect(
+      dropIndex(cards, 'b', grabbed('b2', 300, 20, 90), listOfB, activatorEvent)
+    ).toBe(1)
+  })
+
+  it('returns the over index when the dragged rect has not been translated yet', () => {
+    const active = {
+      id: 'a1',
+      rect: { current: { initial: null, translated: null } },
+    } as unknown as Active
+
+    expect(dropIndex(cards, 'b', active, b1, activatorEvent)).toBe(0)
+  })
+
+  it('returns the over index for a same-column reorder no matter where the pointer is', () => {
+    expect(dropIndex(cards, 'b', grabbed('b2', 139, 0, 40), b1, activatorEvent)).toBe(0)
+  })
+
+  it('returns the over index when a card is dropped on itself', () => {
+    expect(dropIndex(cards, 'b', grabbed('b1', 139, 0, 40), b1, activatorEvent)).toBe(0)
   })
 })

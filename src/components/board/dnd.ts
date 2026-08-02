@@ -6,6 +6,7 @@ import {
   type CollisionDetection,
   type Over,
 } from '@dnd-kit/core'
+import { getEventCoordinates } from '@dnd-kit/utilities'
 import type { Card } from '@/types'
 
 const LIST_PREFIX = 'list:'
@@ -65,7 +66,26 @@ export const touchedColumns = (next: Card[], previous: Card[]) => {
   )
 }
 
-export const dropIndex = (cards: Card[], toColumnId: string, active: Active, over: Over) => {
+const midpointY = (rect: { top: number; height: number }) => rect.top + rect.height / 2
+
+// `over` is picked by the pointer, so above/below must be judged by the pointer too.
+const dropPointY = (active: Active, activatorEvent: Event) => {
+  const { initial, translated } = active.rect.current
+  if (!translated) return null
+
+  const grabY = getEventCoordinates(activatorEvent)?.y
+  if (grabY === undefined || !initial) return midpointY(translated)
+
+  return grabY + translated.top - initial.top
+}
+
+export const dropIndex = (
+  cards: Card[],
+  toColumnId: string,
+  active: Active,
+  over: Over,
+  activatorEvent: Event
+) => {
   const target = cardsIn(cards, toColumnId)
   const overIndex = target.findIndex((card) => card.id === over.id)
 
@@ -75,9 +95,7 @@ export const dropIndex = (cards: Card[], toColumnId: string, active: Active, ove
   }
   if (target.some((card) => card.id === active.id)) return overIndex
 
-  const activeRect = active.rect.current.translated
-  const belowMidpoint =
-    !!activeRect &&
-    activeRect.top + activeRect.height / 2 > over.rect.top + over.rect.height / 2
+  const pointY = dropPointY(active, activatorEvent)
+  const belowMidpoint = pointY !== null && pointY > midpointY(over.rect)
   return overIndex + (belowMidpoint ? 1 : 0)
 }
