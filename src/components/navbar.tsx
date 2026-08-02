@@ -26,6 +26,9 @@ interface NavbarProps {
   boardId?: string
   /** Renders the board name and expiry only: no Create, terminal, share or board menu. */
   readOnly?: boolean
+  /** Required when readOnly: the anon role cannot select from `boards`. */
+  boardName?: string
+  expiresAt?: string
   setBoardCards?: React.Dispatch<React.SetStateAction<Card[]>>
   setBacklogCards?: React.Dispatch<React.SetStateAction<Card[]>>
   backlogColumnId?: string | null
@@ -39,6 +42,8 @@ type Modal = 'create' | 'terminal' | 'rename' | 'password' | 'delete' | 'appeara
 export default function Navbar({
   boardId,
   readOnly,
+  boardName,
+  expiresAt,
   setBoardCards,
   setBacklogCards,
   backlogColumnId,
@@ -47,13 +52,16 @@ export default function Navbar({
   onError,
 }: NavbarProps) {
   const [openModal, setOpenModal] = useState<Modal>(null)
-  const [boardName, setBoardName] = useState('')
+  const [loadedName, setLoadedName] = useState('')
   const [cardTitles, setCardTitles] = useState<{ title: string }[]>([])
-  const expiresAt = useBoardExpiration(boardId)
+  const loadedExpiresAt = useBoardExpiration(readOnly ? undefined : boardId)
   const supabase = useMemo(createClient, [])
 
+  const displayName = readOnly ? boardName ?? '' : loadedName
+  const displayExpiresAt = readOnly ? expiresAt : loadedExpiresAt
+
   useEffect(() => {
-    if (!boardId) return
+    if (!boardId || readOnly) return
     let cancelled = false
 
     supabase
@@ -61,12 +69,12 @@ export default function Navbar({
       .select('name')
       .eq('id', boardId)
       .single()
-      .then(({ data }) => !cancelled && data && setBoardName(data.name))
+      .then(({ data }) => !cancelled && data && setLoadedName(data.name))
 
     return () => {
       cancelled = true
     }
-  }, [boardId, supabase])
+  }, [boardId, readOnly, supabase])
 
   useEffect(() => {
     if (!boardId || openModal !== 'terminal') return
@@ -151,12 +159,12 @@ export default function Navbar({
             <span aria-hidden className="text-subtle">
               /
             </span>
-            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{boardName}</h1>
+            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{displayName}</h1>
 
             <div className="flex shrink-0 items-center gap-1">
-              {expiresAt && (
+              {displayExpiresAt && (
                 <span className="hidden md:inline-flex">
-                  <BoardExpirationTimer expiresAt={expiresAt} />
+                  <BoardExpirationTimer expiresAt={displayExpiresAt} />
                 </span>
               )}
               {!readOnly && (
@@ -224,8 +232,8 @@ export default function Navbar({
             open={openModal === 'rename'}
             onClose={closeModal}
             boardId={boardId}
-            boardName={boardName}
-            onRenamed={setBoardName}
+            boardName={loadedName}
+            onRenamed={setLoadedName}
           />
 
           <SetPasswordModal

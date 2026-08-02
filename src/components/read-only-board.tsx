@@ -22,7 +22,10 @@ interface SharedBoard {
 
 function ReadOnlyCard({ card }: { card: Card }) {
   return (
-    <li className="relative rounded-card border border-subtle bg-surface-raised px-2.5 py-2">
+    <li
+      data-card
+      className="relative rounded-card border border-subtle bg-surface-raised px-2.5 py-2"
+    >
       {card.color && (
         <span
           aria-hidden
@@ -30,7 +33,11 @@ function ReadOnlyCard({ card }: { card: Card }) {
           style={{ backgroundColor: card.color }}
         />
       )}
-      <p className={cn('line-clamp-2 text-sm text-fg', !card.description && 'font-medium')}>
+      <span aria-hidden data-card-glyphs />
+      <p
+        data-card-title
+        className={cn('line-clamp-2 text-sm text-fg', !card.description && 'font-medium')}
+      >
         {card.title}
       </p>
       {card.description && <p className="mt-1 line-clamp-2 text-xs text-muted">{card.description}</p>}
@@ -57,20 +64,32 @@ function ReadOnlyColumn({
   return (
     <section
       aria-label={name}
+      data-column
       className="flex w-column shrink-0 flex-col rounded-panel border border-subtle bg-surface"
     >
-      <header className="flex items-center gap-2 px-2 py-2">
-        <h2 className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wide text-muted">
+      <header data-column-head className="flex items-center gap-2 px-2 py-2">
+        <h2
+          data-column-name
+          className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wide text-muted"
+        >
           {name}
         </h2>
-        <span className="font-mono text-2xs tabular-nums text-subtle">{cards.length}</span>
+        <span data-column-count className="font-mono text-2xs tabular-nums">
+          {cards.length}
+        </span>
       </header>
-      <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 pt-0 scrollbar-thin">
+      <ul
+        data-card-list
+        className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 pt-0 scrollbar-thin"
+      >
         {cards.map((card) => (
           <ReadOnlyCard key={card.id} card={card} />
         ))}
         {cards.length === 0 && (
-          <li className="rounded-card border border-dashed border-subtle py-6 text-center text-xs text-subtle">
+          <li
+            data-card-empty
+            className="rounded-card border border-dashed border-subtle py-6 text-center text-xs text-subtle"
+          >
             {emptyLabel}
           </li>
         )}
@@ -153,7 +172,12 @@ export default function ReadOnlyBoard({
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-canvas">
-      <Navbar readOnly boardId={boardId} />
+      <Navbar
+        readOnly
+        boardId={boardId}
+        boardName={board.board.name}
+        expiresAt={board.board.expires_at}
+      />
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-subtle bg-surface px-3 py-2">
         <Eye aria-hidden className="size-3.5 shrink-0 text-muted" />
