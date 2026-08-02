@@ -32,6 +32,12 @@ begin
 end;
 $$;
 
+-- Verified disabled (tgenabled = 'D') in production, so dropping it changes no behaviour.
+-- It predates the RPC-only client: board_create and board_set_password now call crypt()
+-- themselves, so this would double-hash every password if anyone re-enabled it. Dropped
+-- explicitly rather than with CASCADE on the function, so nothing else goes with it unseen.
+drop trigger if exists hash_board_password_trigger on public.boards;
+
 do $$
 declare
   dead record;
