@@ -83,7 +83,17 @@ export default function AboutPage() {
               <Link href="/guides/read-only-board-links">read-only link</Link>{" "}
               for people who should see it but not change it
             </li>
-            <li>Light and dark appearance, following your system setting</li>
+            <li>
+              Six themes — Broadsheet, Instrument Panel, Index Card Desk,
+              Signal Press, Dusk Calm and Phosphor Bitmap — with the colours,
+              font, weight and corner radius adjustable on any of them
+            </li>
+            <li>Export of the whole board to JSON or CSV</li>
+            <li>
+              A <Link href="/cli">command line client</Link> that drives the
+              same board from a terminal, with <code>--json</code> on every
+              command
+            </li>
           </ul>
 
           <h2>What it does not do</h2>
