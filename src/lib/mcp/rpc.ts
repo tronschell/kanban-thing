@@ -27,12 +27,13 @@ const unavailable = (error: unknown) => {
 export const createBoard = async (
   supabase: SupabaseClient,
   name: string,
+  password: string,
   extraColumns: string[],
   days: number
 ): Promise<string> => {
   const { data, error } = await supabase.rpc('board_create', {
     name_param: name,
-    password_param: null,
+    password_param: password,
     extra_columns: extraColumns,
     days_param: days,
   })

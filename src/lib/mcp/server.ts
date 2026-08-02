@@ -30,6 +30,15 @@ import {
 
 const DEFAULT_COLUMNS = ['To Do', 'In Progress', 'Done']
 
+/** 32 characters exactly, so the byte-to-character mapping below carries no modulo bias. */
+const PASSWORD_ALPHABET = 'abcdefghjkmnopqrstuvwxyz23456789'
+
+const generatedPassword = () =>
+  Array.from(
+    crypto.getRandomValues(new Uint8Array(12)),
+    (byte) => PASSWORD_ALPHABET[byte % PASSWORD_ALPHABET.length]
+  ).join('')
+
 const boardArgs = { board_id: boardIdInput, password: passwordInput.optional() }
 
 const result = (payload: Record<string, unknown>) => ({
@@ -89,9 +98,12 @@ export function createMcpServer(supabase: SupabaseClient) {
     {
       title: 'Create a Kanban board',
       description:
-        'Create a new KanbanThing board and return its id and shareable URL. No sign-up. The board has no password, so anyone holding the URL can read and edit it; boards created here are deleted when they expire.',
+        'Create a new KanbanThing board and return its id, shareable URL and password. No sign-up. Every board is password protected: pass `password` to choose one, otherwise a random password is generated and returned. Give both the URL and the password to whoever should use the board. Boards are deleted when they expire.',
       inputSchema: {
         name: z.string().trim().min(1).max(100).describe('Board name shown to everyone.'),
+        password: passwordInput
+          .optional()
+          .describe('Board password. A random one is generated and returned if omitted.'),
         columns: z
           .array(columnRefInput)
           .max(10)
@@ -113,18 +125,21 @@ export function createMcpServer(supabase: SupabaseClient) {
         openWorldHint: false,
       },
     },
-    async ({ name, columns, lifespan_days }) => {
+    async ({ name, password, columns, lifespan_days }) => {
+      const boardPassword = password ?? generatedPassword()
       const boardId = await createBoard(
         supabase,
         name,
+        boardPassword,
         columns ?? DEFAULT_COLUMNS,
         lifespan_days ?? DEFAULT_LIFESPAN_DAYS
       )
-      const board = await readBoard(supabase, boardId, '')
+      const board = await readBoard(supabase, boardId, boardPassword)
       if (board.status !== 'ok') throw new Error('The board was created but could not be read back.')
 
       return result({
         board: publicBoard(board.board),
+        password: boardPassword,
         columns: board.columns.map(publicColumn),
       })
     }
