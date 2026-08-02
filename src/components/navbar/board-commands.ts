@@ -52,6 +52,19 @@ const ok = (message: string): CommandResponse => ({ success: true, message })
 const findColumn = (columns: Column[], name: string) =>
   columns.find((column) => column.name.toLowerCase() === name.trim().toLowerCase())
 
+const splitAtColumn = (words: string[], keyword: string, columns: Column[]) => {
+  let best: { title: string; column: Column } | undefined
+  for (let index = 1; index < words.length - 1; index++) {
+    if (words[index].toLowerCase() !== keyword) continue
+    const column = findColumn(columns, words.slice(index + 1).join(' '))
+    if (!column) continue
+    if (!best || column.name.length >= best.column.name.length) {
+      best = { title: words.slice(0, index).join(' '), column }
+    }
+  }
+  return best
+}
+
 const unknownColumn = (columns: Column[], name: string) =>
   failure(
     `Column "${name}" not found. Available: ${columns.map((column) => `"${column.name}"`).join(', ')}`
@@ -103,16 +116,15 @@ export async function runBoardCommand(
 
   try {
     if (action === 'create') {
-      const flagsAt = input.indexOf('--')
+      const flagsAt = input.search(/\s--/)
       const head = (flagsAt === -1 ? input : input.slice(0, flagsAt)).trim().split(/\s+/).slice(1)
-      const inAt = head.findIndex((word) => word.toLowerCase() === 'in')
+      const split = splitAtColumn(head, 'in', columns)
 
-      const title = (inAt === -1 ? head : head.slice(0, inAt)).join(' ')
+      const title = split?.title ?? head.join(' ')
       if (!title) return failure('Usage: create {title} [in {column}]')
 
-      const columnName = inAt === -1 ? 'Backlog' : head.slice(inAt + 1).join(' ')
-      const column = findColumn(columns, columnName)
-      if (!column) return unknownColumn(columns, columnName)
+      const column = split?.column ?? findColumn(columns, 'Backlog')
+      if (!column) return unknownColumn(columns, 'Backlog')
 
       const description = input.match(/--desc\s+"([^"]+)"/i)?.[1] ?? null
       const color = input.match(/--color\s+(#[0-9a-f]{6}|#[0-9a-f]{3})\b/i)?.[1] ?? null
@@ -142,16 +154,16 @@ export async function runBoardCommand(
     }
 
     if (action === 'move') {
-      const toAt = words.map((word) => word.toLowerCase()).lastIndexOf('to')
-      if (toAt < 2 || toAt === words.length - 1) {
-        return failure('Usage: move {title} to {column}')
+      const split = splitAtColumn(words.slice(1), 'to', columns)
+      if (!split) {
+        const toAt = words.map((word) => word.toLowerCase()).lastIndexOf('to')
+        if (toAt < 2 || toAt === words.length - 1) {
+          return failure('Usage: move {title} to {column}')
+        }
+        return unknownColumn(columns, words.slice(toAt + 1).join(' '))
       }
 
-      const columnName = words.slice(toAt + 1).join(' ')
-      const column = findColumn(columns, columnName)
-      if (!column) return unknownColumn(columns, columnName)
-
-      const title = words.slice(1, toAt).join(' ')
+      const { title, column } = split
       const matches = cardsTitled(snapshot, title)
       if (matches.length === 0) return failure(`Card "${title}" not found`)
       if (matches.length > 1) {
