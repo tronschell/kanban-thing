@@ -33,7 +33,10 @@ export function useHoursLeft(expiresAt: string | null) {
   const [hoursLeft, setHoursLeft] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!expiresAt) return
+    if (!expiresAt) {
+      setHoursLeft(null)
+      return
+    }
     const tick = () => setHoursLeft((new Date(expiresAt).getTime() - Date.now()) / 3600000)
 
     tick()

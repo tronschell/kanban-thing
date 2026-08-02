@@ -251,13 +251,11 @@ export default function Navbar({
             boardId={boardId}
           />
 
-          {expiresAt && (
-            <BoardLifespanModal
-              open={openModal === 'lifespan'}
-              onClose={closeModal}
-              expiresAt={expiresAt}
-            />
-          )}
+          <BoardLifespanModal
+            open={openModal === 'lifespan'}
+            onClose={closeModal}
+            expiresAt={expiresAt}
+          />
 
           <DeleteBoardModal open={openModal === 'delete'} onClose={closeModal} boardId={boardId} />
         </>
