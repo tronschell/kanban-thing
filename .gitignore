@@ -41,7 +41,7 @@ next-env.d.ts
 
 *.sql
 !db/*.sql
-!db/tests/*.sql
+!db/tests/**/*.sql
 
 metadata.json
 src/lib/supabase/add_board_password.sql

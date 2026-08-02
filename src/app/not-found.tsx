@@ -12,7 +12,7 @@ export default function NotFound() {
       </h1>
       <p className="mt-4 max-w-[62ch] text-md text-muted">
         This page does not exist, or the board it pointed at has expired. Boards
-        are removed two months after they are created.
+        are removed 60 days after they are created.
       </p>
       <Button asChild variant="primary" size="lg" className="mt-8">
         <Link href="/">Back to home</Link>

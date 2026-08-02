@@ -1,7 +1,9 @@
--- Run after 06 and strictly BEFORE 09_schedule_cleanup.sql.
--- The grace update is a ONE-TIME rescue for boards that outlived their expiry only because
--- cleanup_expired_boards was broken. Boards have a hard 60-day life and there is no extend
--- path: board_extend is dropped here and must never be reintroduced.
+-- Run after 06. The grace update is a ONE-TIME rescue for boards that outlived their expiry
+-- only because cleanup_expired_boards was broken. Boards have a hard 60-day life and there is no
+-- extend path: board_extend is dropped here and must never be reintroduced.
+-- The grace update pushes expires_at to now() + 30 days with no regard for created_at, so it can
+-- carry an old board past created_at + 60 days. 22_expiry_hard_cap.sql clamps that back and adds
+-- the constraint that makes it unrepeatable.
 
 with extended as (
   update boards

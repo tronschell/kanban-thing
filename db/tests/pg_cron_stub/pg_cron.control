@@ -1,0 +1,4 @@
+comment = 'stub of pg_cron for the expiry tests: job table plus schedule/unschedule, no daemon'
+default_version = '1.6'
+relocatable = false
+schema = 'cron'

@@ -1,4 +1,7 @@
--- Run last, on the postgres database only. Aborts unless 08_expiry_grace_period.sql has already rescued every board that is past expires_at.
+-- SUPERSEDED by 22_expiry_hard_cap.sql. Do not run. Kept for the history of what was applied.
+-- The guard below can never pass on a live database: boards cross expires_at continuously, so
+-- whatever 08 rescued is overdue again by the time this file runs, and the cron job is never
+-- created. 22 clamps, reaps and schedules in one transaction instead.
 
 do $$
 declare
