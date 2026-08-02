@@ -23,7 +23,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Badge } from '@/components/ui'
+import { Badge } from '@/components/ui/badge'
 import { LABEL_COLORS } from '@/lib/colors'
 import { cn } from '@/lib/utils'
 
