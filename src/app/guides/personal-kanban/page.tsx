@@ -49,7 +49,7 @@ export default function PersonalKanbanGuide() {
         thing that makes a week feel bad.
       </p>
 
-      <h2>The columns</h2>
+      <h2>The columns for a personal kanban board</h2>
       <p>
         Start with the three a new board gives you and rename the first two:
       </p>

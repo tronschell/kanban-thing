@@ -141,7 +141,7 @@ export default function KanbanColumnsGuide() {
         job to do carefully rather than while distracted.
       </p>
 
-      <h2>Limiting work in progress</h2>
+      <h2>Limiting work in progress (WIP limits)</h2>
       <p>
         The reason kanban has columns at all is to expose how much is in flight
         at once, and the classic discipline is an upper limit on the number of
@@ -179,7 +179,7 @@ export default function KanbanColumnsGuide() {
         </li>
       </ul>
 
-      <h2>Four layouts worth copying</h2>
+      <h2>Four kanban board layouts worth copying</h2>
       <ul>
         <li>
           <strong>Small software team.</strong> Backlog, To Do, In Progress, In

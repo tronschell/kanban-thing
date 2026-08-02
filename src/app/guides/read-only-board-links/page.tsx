@@ -19,7 +19,7 @@ export default function ReadOnlyBoardLinksGuide() {
       path="/guides/read-only-board-links"
       lead="There are no accounts here, so there are no roles either. Access is a property of the link somebody is holding. There are exactly two kinds, they behave very differently, and it is worth knowing which one you just pasted into a group chat."
     >
-      <h2>The two links</h2>
+      <h2>The two kinds of board link</h2>
       <p>
         Both are copied from the <strong>Share</strong> menu in the board
         header.
@@ -95,7 +95,7 @@ export default function ReadOnlyBoardLinksGuide() {
         : the team edits, the manager reads.
       </p>
 
-      <h2>Taking access back</h2>
+      <h2>How to revoke a shared board link</h2>
       <h3>Revoking the read-only link</h3>
       <p>
         <strong>Revoke view-only link</strong> in the Share menu invalidates the
