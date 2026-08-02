@@ -41,13 +41,16 @@ const fetchBoardSummaries = async (ids: string[]) => {
   return new Map(summaries)
 }
 
-const timeLeft = (expiresAt: string) => {
+export const timeLeft = (expiresAt: string) => {
   const remaining = new Date(expiresAt).getTime() - Date.now()
   if (remaining <= 0) return { label: 'Expired', urgent: true }
 
   const days = Math.floor(remaining / 86400000)
-  if (days === 0) return { label: `${Math.floor(remaining / 3600000)}h left`, urgent: true }
-  return { label: `${days}d left`, urgent: days <= 7 }
+  if (days > 0) return { label: `${days}d left`, urgent: days <= 7 }
+
+  const hours = Math.floor(remaining / 3600000)
+  if (hours > 0) return { label: `${hours}h left`, urgent: true }
+  return { label: `${Math.max(1, Math.floor(remaining / 60000))}m left`, urgent: true }
 }
 
 const relative = (iso: string) => formatDistanceToNow(new Date(iso), { addSuffix: true })
