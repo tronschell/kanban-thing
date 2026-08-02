@@ -11,6 +11,7 @@ import { Badge, Button, Skeleton } from '@/components/ui'
 
 const STUCK_DAYS = 7
 const WINDOW_DAYS = 7
+const TICK_MS = 60000
 const DIGEST_ROWS = 10
 const BACKLOG_NAME = 'Backlog'
 
@@ -125,6 +126,12 @@ export default function PulseView({ boardId }: { boardId: string }) {
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), TICK_MS)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -177,7 +184,6 @@ export default function PulseView({ boardId }: { boardId: string }) {
   }, [copied])
 
   const pulse = useMemo(() => {
-    const now = Date.now()
     const windowStart = now - WINDOW_DAYS * 86400000
     const backlogIds = new Set(
       columns.filter(column => column.name === BACKLOG_NAME).map(column => column.id)
@@ -186,7 +192,7 @@ export default function PulseView({ boardId }: { boardId: string }) {
     // "Right-most" is only meaningful once a board has somewhere for work to land.
     const finalColumn = ordered.length >= 2 ? ordered[ordered.length - 1] : null
     const nameOf = new Map(columns.map(column => [column.id, column.name]))
-    const today = format(new Date(), 'yyyy-MM-dd')
+    const today = format(now, 'yyyy-MM-dd')
 
     const stuck: StuckRow[] = cards
       .filter(card => !backlogIds.has(card.column_id) && card.column_id !== finalColumn?.id)
@@ -239,7 +245,7 @@ export default function PulseView({ boardId }: { boardId: string }) {
     const summary = `${plural(cards.length, 'card')}. ${stuck.length} stuck, ${late.length} late, ${moved.length} moved this week.`
 
     return { summary, stuck, late, moved, landed }
-  }, [cards, columns])
+  }, [cards, columns, now])
 
   const copySummary = async () => {
     const digest =

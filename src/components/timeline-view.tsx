@@ -32,6 +32,7 @@ type Range = '7' | '30' | '90' | 'all'
 type SortBy = 'updated' | 'created'
 
 const VISIBLE_ENTRIES = 4
+const TICK_MS = 60000
 
 const entriesOf = (card: TimelineCard): Entry[] =>
   [
@@ -143,6 +144,12 @@ export default function TimelineView({ boardId }: { boardId: string }) {
   const [failed, setFailed] = useState(false)
   const [range, setRange] = useState<Range>('30')
   const [sortBy, setSortBy] = useState<SortBy>('updated')
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), TICK_MS)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -194,10 +201,10 @@ export default function TimelineView({ boardId }: { boardId: string }) {
   const visible = useMemo(() => {
     const activity = (card: TimelineCard) =>
       sortBy === 'created' ? new Date(card.created_at).getTime() : lastActivityOf(card)
-    const cutoff = range === 'all' ? 0 : subDays(new Date(), Number(range)).getTime()
+    const cutoff = range === 'all' ? 0 : subDays(now, Number(range)).getTime()
 
     return cards.filter(card => activity(card) >= cutoff).sort((a, b) => activity(b) - activity(a))
-  }, [cards, range, sortBy])
+  }, [cards, range, sortBy, now])
 
   if (loading) return <TimelineSkeleton />
 
