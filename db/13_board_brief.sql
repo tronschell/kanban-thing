@@ -45,7 +45,7 @@ begin
   end if;
 
   update boards
-  set brief = nullif(btrim(left(coalesce(brief_param, ''), 4000)), '')
+  set brief = nullif(btrim(left(coalesce(brief_param, ''), 4000), E' \t\r\n'), '')
   where id = board_id_param;
 
   return 'ok';

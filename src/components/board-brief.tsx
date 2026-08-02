@@ -21,6 +21,7 @@ const SAVE_ERRORS: Record<string, string> = {
 export default function BoardBrief({ boardId }: { boardId: string }) {
   const supabase = useMemo(() => createClient(), [])
   const [brief, setBrief] = useState<string | null | undefined>(undefined)
+  const [isLoading, setIsLoading] = useState(true)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [isPreview, setIsPreview] = useState(false)
@@ -32,15 +33,18 @@ export default function BoardBrief({ boardId }: { boardId: string }) {
     let cancelled = false
 
     setBrief(undefined)
+    setIsLoading(true)
     setIsCollapsed(localStorage.getItem(collapsedKey(boardId)) === '1')
 
     const load = async () => {
-      const { data } = await supabase.rpc('board_brief', {
+      const { data, error } = await supabase.rpc('board_brief', {
         board_id_param: boardId,
         password_attempt: storedPassword(boardId),
       })
       if (cancelled) return
-      setBrief(data?.status === 'ok' ? data.brief ?? null : null)
+      setIsLoading(false)
+      if (error || data?.status !== 'ok') return
+      setBrief(data.brief ?? null)
     }
 
     load()
@@ -83,6 +87,7 @@ export default function BoardBrief({ boardId }: { boardId: string }) {
     setIsEditorOpen(false)
   }
 
+  if (isLoading) return <div className="h-9 px-3 pb-2" />
   if (brief === undefined) return null
 
   return (
@@ -112,13 +117,13 @@ export default function BoardBrief({ boardId }: { boardId: string }) {
               label="Edit board brief"
               size="sm"
               icon={<Pencil />}
-              className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+              className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
               onClick={openEditor}
             />
           </div>
           {!isCollapsed && (
-            <div className="prose max-h-48 max-w-none overflow-y-auto px-2 pb-2 text-sm scrollbar-thin">
-              <ReactMarkdown>{brief}</ReactMarkdown>
+            <div className="prose max-h-48 max-w-none overflow-y-auto break-words px-2 pb-2 text-sm scrollbar-thin">
+              <ReactMarkdown components={{ h1: 'h3' }}>{brief}</ReactMarkdown>
             </div>
           )}
         </section>
