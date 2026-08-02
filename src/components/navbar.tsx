@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { LibraryBig, Plus, Terminal as TerminalIcon, TriangleAlert } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui'
@@ -89,23 +89,20 @@ export default function Navbar({
     }
   }, [boardId, readOnly, supabase])
 
-  useEffect(() => {
-    if (!boardId || openModal !== 'terminal') return
-    let cancelled = false
-
-    supabase
+  const refreshCardTitles = useCallback(async () => {
+    if (!boardId) return
+    const { data } = await supabase
       .from('cards')
       .select('title, columns!inner(board_id)')
       .eq('columns.board_id', boardId)
       .order('title')
-      .then(
-        ({ data }) => !cancelled && data && setCardTitles(data.map(({ title }) => ({ title })))
-      )
+    if (data) setCardTitles(data.map(({ title }) => ({ title })))
+  }, [boardId, supabase])
 
-    return () => {
-      cancelled = true
-    }
-  }, [boardId, openModal, supabase])
+  useEffect(() => {
+    if (openModal !== 'terminal') return
+    refreshCardTitles()
+  }, [openModal, refreshCardTitles])
 
   const handleCreateCard = async (
     columnId: string,
@@ -251,14 +248,17 @@ export default function Navbar({
           <TerminalInterface
             isOpen={openModal === 'terminal'}
             onClose={closeModal}
-            onCommand={(command) =>
-              runBoardCommand(command, {
+            onCommand={async (command) => {
+              const response = await runBoardCommand(command, {
+                boardId,
                 columns,
                 backlogColumnId,
                 setBoardCards,
                 setBacklogCards,
               })
-            }
+              await refreshCardTitles()
+              return response
+            }}
             availableCards={cardTitles}
             availableColumns={columns}
           />

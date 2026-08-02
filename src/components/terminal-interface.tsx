@@ -123,11 +123,17 @@ export function TerminalInterface({
     const command = input.trim()
     if (!command) return
 
-    setLines((prev) => [...prev, { text: `❯ ${command}`, kind: 'input' }])
     setCommandHistory((prev) => [...prev, command])
     setHistoryIndex(-1)
     setInput('')
     setSuggestion('')
+
+    if (command.toLowerCase() === 'clear') {
+      setLines([])
+      return
+    }
+
+    setLines((prev) => [...prev, { text: `❯ ${command}`, kind: 'input' }])
 
     const response = await onCommand(command)
     setLines((prev) => [
@@ -155,6 +161,12 @@ export function TerminalInterface({
                 line.kind === 'error' && 'text-danger'
               )}
             >
+              {line.kind === 'error' && (
+                <>
+                  <span className="sr-only">Error: </span>
+                  <span aria-hidden>✕ </span>
+                </>
+              )}
               {line.text}
             </p>
           ))}
