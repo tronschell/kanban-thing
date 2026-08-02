@@ -71,21 +71,24 @@ interface CardFormData {
 
 const BACKLOG_NAME = 'Backlog'
 
-const lowestIdBacklog = (columns: Column[]) =>
-  columns
-    .filter((column) => column.name === BACKLOG_NAME)
-    .sort((a, b) => a.id.localeCompare(b.id))[0] ?? null
+export const splitBacklog = (columns: Column[]) => {
+  const backlog =
+    columns
+      .filter((column) => column.name === BACKLOG_NAME)
+      .sort((a, b) => a.id.localeCompare(b.id))[0] ?? null
+
+  return {
+    backlog,
+    columns: columns.filter((column) => column.id !== backlog?.id),
+  }
+}
 
 const fetchBoard = async (supabase: SupabaseClient, boardId: string) => {
   const payload = await readBoard(supabase, boardId)
   if (payload.status !== 'ok') return payload.status
 
-  return {
-    board: payload.board,
-    backlog: lowestIdBacklog(payload.columns),
-    columns: payload.columns.filter((column) => column.name !== BACKLOG_NAME),
-    cards: payload.cards,
-  }
+  const { backlog, columns } = splitBacklog(payload.columns)
+  return { board: payload.board, backlog, columns, cards: payload.cards }
 }
 
 function BoardSkeleton() {
