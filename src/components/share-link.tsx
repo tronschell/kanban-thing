@@ -65,7 +65,7 @@ export default function ShareLink({ boardId }: { boardId: string }) {
       return
     }
 
-    setViewUrl(`${window.location.origin}/board?id=${boardId}&view=${data.view_token}`)
+    setViewUrl(`${window.location.origin}/board?view=${data.view_token}`)
   }
 
   const revokeViewLink = async () => {

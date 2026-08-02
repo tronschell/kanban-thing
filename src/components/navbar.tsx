@@ -71,6 +71,7 @@ export default function Navbar({
   const [openModal, setOpenModal] = useState<Modal>(null)
   const supabase = useMemo(createClient, [])
   const hoursLeft = useHoursLeft(expiresAt ?? null)
+  const showsBoard = Boolean(boardId) || Boolean(readOnly)
 
   const cardTitles = useMemo(
     () =>
@@ -176,7 +177,7 @@ export default function Navbar({
           KanbanThing
         </Link>
 
-        {boardId && (
+        {showsBoard && (
           <>
             <span aria-hidden className="text-subtle">
               /
@@ -193,7 +194,7 @@ export default function Navbar({
                   <BoardExpirationTimer hoursLeft={hoursLeft} />
                 </span>
               )}
-              {!readOnly && (
+              {boardId && !readOnly && (
                 <>
                   <Button asChild variant="ghost" size="sm">
                     <Link href="/boards">
@@ -229,7 +230,7 @@ export default function Navbar({
         )}
       </header>
 
-      {boardId && hoursLeft !== null && hoursLeft < 24 && (
+      {showsBoard && hoursLeft !== null && hoursLeft < 24 && (
         <div
           role="status"
           className="flex flex-wrap items-center gap-2 border-b border-danger bg-danger-soft px-3 py-2"

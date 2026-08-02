@@ -45,6 +45,7 @@ import {
 } from '@/components/board/dnd'
 import { createClient } from '@/lib/supabase/client'
 import { BACKLOG_NAME, splitBacklog } from '@/lib/backlog'
+import { boardRoute } from '@/lib/board-route'
 import { rememberBoard } from '@/lib/board-library'
 import { DEFAULT_LIFESPAN_DAYS } from '@/lib/board-lifespan'
 import {
@@ -108,12 +109,10 @@ function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () =>
 }
 
 export default function BoardContent() {
-  const searchParams = useSearchParams()
-  const boardId = searchParams.get('id')
-  const viewToken = searchParams.get('view')
+  const route = boardRoute(useSearchParams())
 
-  if (boardId && viewToken) {
-    return <ReadOnlyBoard boardId={boardId} viewToken={viewToken} />
+  if (route.kind === 'read-only') {
+    return <ReadOnlyBoard viewToken={route.viewToken} />
   }
 
   return <EditableBoard />

@@ -1,8 +1,6 @@
-import type { Column } from '@/types'
-
 export const BACKLOG_NAME = 'Backlog'
 
-export const splitBacklog = (columns: Column[]) => {
+export const splitBacklog = <T extends { id: string; name: string }>(columns: T[]) => {
   const backlog =
     columns
       .filter((column) => column.name === BACKLOG_NAME)

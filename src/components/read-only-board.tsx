@@ -15,8 +15,8 @@ import type { Card, Column } from '@/types'
 
 interface SharedBoard {
   status: string
-  board: { id: string; name: string; expires_at: string }
-  columns: Column[]
+  board: { name: string; expires_at: string }
+  columns: Omit<Column, 'board_id'>[]
   cards: Card[]
 }
 
@@ -98,13 +98,7 @@ function ReadOnlyColumn({
   )
 }
 
-export default function ReadOnlyBoard({
-  boardId,
-  viewToken,
-}: {
-  boardId: string
-  viewToken: string
-}) {
+export default function ReadOnlyBoard({ viewToken }: { viewToken: string }) {
   const supabase = useMemo(createClient, [])
   const [board, setBoard] = useState<SharedBoard | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -114,10 +108,7 @@ export default function ReadOnlyBoard({
     let cancelled = false
 
     const loadSharedBoard = async () => {
-      const { data } = await supabase.rpc('board_read_shared', {
-        board_id_param: boardId,
-        view_token_param: viewToken,
-      })
+      const { data } = await supabase.rpc('board_read_shared', { view_token_param: viewToken })
       if (cancelled) return
 
       const shared = data as SharedBoard | null
@@ -129,7 +120,7 @@ export default function ReadOnlyBoard({
     return () => {
       cancelled = true
     }
-  }, [boardId, viewToken, supabase])
+  }, [viewToken, supabase])
 
   if (isLoading) {
     return (
@@ -169,12 +160,7 @@ export default function ReadOnlyBoard({
   const cardsIn = (columnId: string) => board.cards.filter((card) => card.column_id === columnId)
   return (
     <div className="flex h-full flex-col overflow-hidden bg-canvas">
-      <Navbar
-        readOnly
-        boardId={boardId}
-        boardName={board.board.name}
-        expiresAt={board.board.expires_at}
-      />
+      <Navbar readOnly boardName={board.board.name} expiresAt={board.board.expires_at} />
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-subtle bg-surface px-3 py-2">
         <Eye aria-hidden className="size-3.5 shrink-0 text-muted" />
