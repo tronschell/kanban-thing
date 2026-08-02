@@ -38,8 +38,9 @@ begin
     return;
   end if;
 
+  -- Supabase runs the API role with sql_safe_updates on, which rejects an unqualified UPDATE.
   execute format(
-    'update global_stats set %I = %I + $1, last_updated = now()',
+    'update global_stats set %I = %I + $1, last_updated = now() where id is not null',
     column_name, column_name
   ) using amount;
 end;
