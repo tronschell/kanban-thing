@@ -76,6 +76,8 @@ export const dropIndex = (cards: Card[], toColumnId: string, active: Active, ove
   if (target.some((card) => card.id === active.id)) return overIndex
 
   const activeRect = active.rect.current.translated
-  const belowMidpoint = !!activeRect && activeRect.top > over.rect.top + over.rect.height / 2
+  const belowMidpoint =
+    !!activeRect &&
+    activeRect.top + activeRect.height / 2 > over.rect.top + over.rect.height / 2
   return overIndex + (belowMidpoint ? 1 : 0)
 }
