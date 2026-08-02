@@ -44,6 +44,7 @@ import {
   touchedColumns,
 } from '@/components/board/dnd'
 import { createClient } from '@/lib/supabase/client'
+import { BACKLOG_NAME, splitBacklog } from '@/lib/backlog'
 import { rememberBoard } from '@/lib/board-library'
 import { DEFAULT_LIFESPAN_DAYS } from '@/lib/board-lifespan'
 import {
@@ -67,20 +68,6 @@ interface CardFormData {
   description: string
   color: string | null
   due_date: string | null
-}
-
-const BACKLOG_NAME = 'Backlog'
-
-export const splitBacklog = (columns: Column[]) => {
-  const backlog =
-    columns
-      .filter((column) => column.name === BACKLOG_NAME)
-      .sort((a, b) => a.id.localeCompare(b.id))[0] ?? null
-
-  return {
-    backlog,
-    columns: columns.filter((column) => column.id !== backlog?.id),
-  }
 }
 
 const fetchBoard = async (supabase: SupabaseClient, boardId: string) => {

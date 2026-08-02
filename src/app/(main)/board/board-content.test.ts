@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Card, Column } from '@/types'
-import { splitBacklog } from './board-content'
+import { splitBacklog } from '@/lib/backlog'
 
 const column = (id: string, name: string): Column => ({
   id,
