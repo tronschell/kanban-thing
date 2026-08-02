@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /board
 
-Sitemap: https://kanbanthing.com/sitemap.xml 
+Sitemap: https://www.kanbanthing.com/sitemap.xml 

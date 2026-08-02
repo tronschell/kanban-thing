@@ -6,7 +6,7 @@ import { generateMetadata } from '@/lib/metadata'
 
 export const metadata: Metadata = {
   ...generateMetadata({
-    title: 'Your boards - KanbanThing',
+    title: 'Your boards',
     description: 'The kanban boards you have opened in this browser, and how long each one has left.',
     path: '/boards',
   }),

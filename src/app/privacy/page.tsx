@@ -4,7 +4,7 @@ import { generateMetadata } from "@/lib/metadata"
 import { Button } from "@/components/ui/button"
 
 export const metadata: Metadata = generateMetadata({
-  title: "Privacy Policy - KanbanThing",
+  title: "Privacy Policy",
   description:
     "Our privacy policy explains how we handle your data at KanbanThing, including board data, analytics, and cookie usage.",
   path: "/privacy",

@@ -4,7 +4,7 @@ import { generateMetadata } from "@/lib/metadata"
 import { Button } from "@/components/ui/button"
 
 export const metadata: Metadata = generateMetadata({
-  title: "Terms of Service - KanbanThing",
+  title: "Terms of Service",
   description:
     "Read the terms of service for KanbanThing. Learn about the usage terms, limitations, and disclaimers for our Kanban board application.",
   path: "/terms",

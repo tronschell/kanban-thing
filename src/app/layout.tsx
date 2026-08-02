@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     default: 'KanbanThing - Simple Free Kanban Board Tool'
   },
   description: 'A simple, no-signup, and free Kanban board application designed to help individuals and teams organize their work effectively. KanbanThing can be used for project management, team collaboration, or as a simple task list.',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://kanbanthing.com'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://www.kanbanthing.com'),
   openGraph: {
     type: 'website',
     siteName: 'KanbanThing',
