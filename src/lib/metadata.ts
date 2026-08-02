@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.kanbanthing.com'
+export const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.kanbanthing.com'
 
 const ogImage = {
   url: '/opengraph-image',
