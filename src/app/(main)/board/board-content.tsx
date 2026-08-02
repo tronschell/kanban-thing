@@ -45,7 +45,17 @@ import {
 } from '@/components/board/dnd'
 import { createClient } from '@/lib/supabase/client'
 import { rememberBoard } from '@/lib/board-library'
-import { ensureBoardPassword, recordCardHistory } from '@/lib/board-writes'
+import { DEFAULT_LIFESPAN_DAYS } from '@/lib/board-lifespan'
+import {
+  cardRow,
+  columnRow,
+  createBoard,
+  readBoard,
+  saveCards,
+  saveColumns,
+  writeMessage,
+  type WriteResult,
+} from '@/lib/board-writes'
 import { useAnalytics } from '@/hooks/use-analytics'
 import { useBoardAuth } from '@/hooks/use-board-auth'
 import type { Card, Column } from '@/types'
@@ -67,36 +77,14 @@ const lowestIdBacklog = (columns: Column[]) =>
     .sort((a, b) => a.id.localeCompare(b.id))[0] ?? null
 
 const fetchBoard = async (supabase: SupabaseClient, boardId: string) => {
-  const { data: meta } = await supabase
-    .from('boards')
-    .select('id, name, expires_at')
-    .eq('id', boardId)
-    .single()
-  if (!meta) return null
-
-  const readColumns = async () => {
-    const { data } = await supabase.from('columns').select('*').eq('board_id', boardId).order('position')
-    return (data ?? []) as Column[]
-  }
-
-  let loaded = await readColumns()
-  if (!lowestIdBacklog(loaded)) {
-    await supabase.from('columns').insert({ board_id: boardId, name: BACKLOG_NAME, position: -1 })
-    loaded = await readColumns()
-  }
-
-  const backlog = lowestIdBacklog(loaded)
-  const { data: cardRows } = await supabase
-    .from('cards')
-    .select('*')
-    .in('column_id', loaded.map((column) => column.id))
-    .order('position')
+  const payload = await readBoard(supabase, boardId)
+  if (payload.status !== 'ok') return payload.status
 
   return {
-    meta: meta as { id: string; name: string; expires_at: string },
-    backlog,
-    columns: loaded.filter((column) => column.name !== BACKLOG_NAME),
-    cards: (cardRows ?? []) as Card[],
+    board: payload.board,
+    backlog: lowestIdBacklog(payload.columns),
+    columns: payload.columns.filter((column) => column.name !== BACKLOG_NAME),
+    cards: payload.cards,
   }
 }
 
@@ -147,7 +135,7 @@ function EditableBoard() {
   const boardId = searchParams.get('id')
   const supabase = useMemo(() => createClient(), [])
   const { trackEvent } = useAnalytics()
-  const { isAuthenticated, isLoading: isAuthLoading } = useBoardAuth(boardId)
+  const { isAuthenticated, isLoading: isAuthLoading, unlock, lock } = useBoardAuth(boardId)
 
   const [currentView, setCurrentView] = useState<'kanban' | 'calendar' | 'timeline' | 'pulse'>(
     'kanban'
@@ -155,6 +143,8 @@ function EditableBoard() {
   const [columns, setColumns] = useState<Column[]>([])
   const [cards, setCards] = useState<Card[]>([])
   const [backlogColumn, setBacklogColumn] = useState<Column | null>(null)
+  const [boardName, setBoardName] = useState('')
+  const [expiresAt, setExpiresAt] = useState<string | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(true)
   const [boardNotFound, setBoardNotFound] = useState(false)
   const [newBoardName, setNewBoardName] = useState('')
@@ -191,24 +181,41 @@ function EditableBoard() {
   const nameOfColumn = (columnId: string) =>
     allColumns.find((column) => column.id === columnId)?.name ?? 'Unknown'
 
+  const handleWriteResult = (result: WriteResult, message: string) => {
+    if (result === 'not_found') return setBoardNotFound(true)
+    setErrorMessage(writeMessage(result, message))
+    if (result === 'wrong_password') lock()
+  }
+
   useEffect(() => {
-    if (!boardId) return
+    if (!boardId || !isAuthenticated) return
     let cancelled = false
 
     setIsLoading(true)
     setBoardNotFound(false)
 
     const loadBoard = async () => {
-      await ensureBoardPassword(supabase, boardId)
-      const board = await fetchBoard(supabase, boardId)
+      const board = await fetchBoard(supabase, boardId).catch((error) => {
+        console.error('Board load failed:', error)
+        return null
+      })
       if (cancelled) return
 
-      if (!board) {
-        setBoardNotFound(true)
+      if (board === null) {
+        setErrorMessage('Could not load this board.')
         setIsLoading(false)
         return
       }
 
+      if (typeof board === 'string') {
+        if (board === 'not_found') setBoardNotFound(true)
+        else lock()
+        setIsLoading(false)
+        return
+      }
+
+      setBoardName(board.board.name)
+      setExpiresAt(board.board.expires_at)
       setBacklogColumn(board.backlog)
       setColumns(board.columns)
       setCards(board.cards)
@@ -216,24 +223,30 @@ function EditableBoard() {
 
       rememberBoard({
         id: boardId,
-        name: board.meta.name,
-        expiresAt: board.meta.expires_at,
+        name: board.board.name,
+        expiresAt: board.board.expires_at,
         columns: board.backlog ? [board.backlog, ...board.columns] : board.columns,
         cards: board.cards,
       })
+
+      if (board.backlog) return
+
+      const repaired: Column = {
+        id: crypto.randomUUID(),
+        board_id: boardId,
+        name: BACKLOG_NAME,
+        position: -1,
+        created_at: new Date().toISOString(),
+      }
+      const result = await saveColumns(supabase, boardId, [columnRow(repaired)])
+      if (!cancelled && result === 'ok') setBacklogColumn(repaired)
     }
 
     loadBoard()
     return () => {
       cancelled = true
     }
-  }, [boardId, supabase])
-
-  const reloadCards = async () => {
-    if (!boardId) return
-    const board = await fetchBoard(supabase, boardId)
-    if (board) setCards(board.cards)
-  }
+  }, [boardId, supabase, isAuthenticated, lock])
 
   const enqueueWrite = (work: () => Promise<void>) => {
     const next = writeQueue.current.then(work).catch((error) => {
@@ -246,35 +259,18 @@ function EditableBoard() {
 
   const persistCards = (next: Card[], previous: Card[]) =>
     enqueueWrite(async () => {
+      if (!boardId) return
       const rows = touchedColumns(next, previous).flatMap((columnId) =>
-        cardsIn(next, columnId).map((card) => ({
-          id: card.id,
-          column_id: card.column_id,
-          title: card.title,
-          position: card.position,
-        }))
+        cardsIn(next, columnId).map(cardRow)
       )
       if (rows.length === 0) return
 
-      const { error } = await supabase.from('cards').upsert(rows, { onConflict: 'id' })
-      if (error) {
-        setErrorMessage('Could not save that change. The board has been reloaded.')
-        await reloadCards()
+      const result = await saveCards(supabase, boardId, rows)
+      if (result !== 'ok') {
+        setCards(previous)
+        handleWriteResult(result, 'Could not save that change.')
       }
     })
-
-  const commitCardMove = async (
-    next: Card[],
-    previous: Card[],
-    cardId: string,
-    fromColumnId: string,
-    toColumnId: string
-  ) => {
-    await persistCards(next, previous)
-    if (fromColumnId !== toColumnId) {
-      await recordCardHistory(supabase, cardId, nameOfColumn(fromColumnId), nameOfColumn(toColumnId))
-    }
-  }
 
   const handleDragStart = ({ active }: DragStartEvent) => {
     if (active.data.current?.type !== 'card') return
@@ -334,16 +330,12 @@ function EditableBoard() {
       dropIndex(cards, toColumnId, active, over)
     )
     setCards(next)
-    await commitCardMove(next, origin.cards, String(active.id), origin.columnId, toColumnId)
+    await persistCards(next, origin.cards)
   }
 
-  const saveColumnOrder = (next: Column[]) =>
-    supabase.from('columns').upsert(
-      next.map(({ id, board_id, name, position }) => ({ id, board_id, name, position })),
-      { onConflict: 'id' }
-    )
-
   const reorderColumns = async (activeId: string, overId: string) => {
+    if (!boardId) return
+
     const fromIndex = columns.findIndex((column) => column.id === activeId)
     const toIndex = columns.findIndex(
       (column) => column.id === columnOf(cards, overId, columnIds)
@@ -357,10 +349,10 @@ function EditableBoard() {
     }))
     setColumns(next)
 
-    const { error } = await saveColumnOrder(next)
-    if (error) {
-      setErrorMessage('Could not save the column order.')
+    const result = await saveColumns(supabase, boardId, next.map(columnRow))
+    if (result !== 'ok') {
       setColumns(previous)
+      handleWriteResult(result, 'Could not save the column order.')
     }
   }
 
@@ -368,25 +360,30 @@ function EditableBoard() {
     const previous = cards
     const next = moveCard(previous, card.id, toColumnId, cardsIn(previous, toColumnId).length)
     setCards(next)
-    await commitCardMove(next, previous, card.id, card.column_id, toColumnId)
+    await persistCards(next, previous)
   }
 
   const updateCardFields = async (cardId: string, fields: Partial<Card>) => {
-    setCards((current) => current.map((card) => (card.id === cardId ? { ...card, ...fields } : card)))
+    if (!boardId) return
+
+    const previous = cards
+    const next = previous.map((card) => (card.id === cardId ? { ...card, ...fields } : card))
+    const updated = next.find((card) => card.id === cardId)
+    if (!updated) return
+    setCards(next)
 
     await enqueueWrite(async () => {
-      if (boardId) await ensureBoardPassword(supabase, boardId)
-      const { error } = await supabase.from('cards').update(fields).eq('id', cardId)
-      if (error) {
-        setErrorMessage('Could not update that card. The board has been reloaded.')
-        await reloadCards()
+      const result = await saveCards(supabase, boardId, [cardRow(updated)])
+      if (result !== 'ok') {
+        setCards(previous)
+        handleWriteResult(result, 'Could not update that card.')
       }
     })
   }
 
   const saveCard = async (data: CardFormData) => {
     const editor = cardEditor
-    if (!editor) return
+    if (!editor || !boardId) return
 
     const fields = {
       title: data.title,
@@ -403,60 +400,46 @@ function EditableBoard() {
     }
 
     setCardEditor(null)
-    if (boardId) await ensureBoardPassword(supabase, boardId)
 
-    const { data: created, error } = await supabase
-      .from('cards')
-      .insert({
-        ...fields,
-        column_id: editor.columnId,
-        position: cardsIn(cards, editor.columnId).length,
-      })
-      .select()
-      .single()
+    const created: Card = {
+      ...fields,
+      id: crypto.randomUUID(),
+      column_id: editor.columnId,
+      position: cardsIn(cards, editor.columnId).length,
+      created_at: new Date().toISOString(),
+    }
+    setCards((current) => [...current, created])
 
-    if (error || !created) {
-      setErrorMessage('Could not create that card.')
+    const result = await saveCards(supabase, boardId, [cardRow(created)])
+    if (result !== 'ok') {
+      setCards((current) => current.filter((card) => card.id !== created.id))
+      handleWriteResult(result, 'Could not create that card.')
       return
     }
 
-    setCards((current) => [...current, created])
     trackEvent('create_card', { card_id: created.id, column_id: editor.columnId })
   }
 
-  const saveCardDescription = async (card: Card, description: string) => {
-    setCards((current) =>
-      current.map((item) => (item.id === card.id ? { ...item, description } : item))
-    )
-
-    await enqueueWrite(async () => {
-      if (boardId) await ensureBoardPassword(supabase, boardId)
-      const { error } = await supabase.from('cards').update({ description }).eq('id', card.id)
-      if (error) {
-        setErrorMessage('Could not save that checklist. The board has been reloaded.')
-        await reloadCards()
-      }
-    })
-  }
+  const saveCardDescription = (card: Card, description: string) =>
+    updateCardFields(card.id, { description })
 
   const deleteCard = async (card: Card) => {
     setDeletingCard(null)
+    if (!boardId) return
+
     const previous = cards
     const remaining = previous.filter((item) => item.id !== card.id)
-    const next = [
-      ...remaining.filter((item) => item.column_id !== card.column_id),
-      ...numbered(cardsIn(remaining, card.column_id)),
-    ]
+    const renumbered = numbered(cardsIn(remaining, card.column_id))
+    const next = [...remaining.filter((item) => item.column_id !== card.column_id), ...renumbered]
     setCards(next)
 
-    const { error } = await supabase.from('cards').delete().eq('id', card.id)
-    if (error) {
-      setErrorMessage('Could not delete that card.')
-      setCards(previous)
-      return
-    }
-
-    await persistCards(next, previous)
+    await enqueueWrite(async () => {
+      const result = await saveCards(supabase, boardId, renumbered.map(cardRow), [card.id])
+      if (result !== 'ok') {
+        setCards(previous)
+        handleWriteResult(result, 'Could not delete that card.')
+      }
+    })
   }
 
   const saveColumn = async (name: string) => {
@@ -466,32 +449,37 @@ function EditableBoard() {
 
     if (editor.column) {
       const previous = columns
-      setColumns(previous.map((column) => (column.id === editor.column!.id ? { ...column, name } : column)))
+      const renamed = { ...editor.column, name }
+      setColumns(previous.map((column) => (column.id === renamed.id ? renamed : column)))
 
-      const { error } = await supabase.from('columns').update({ name }).eq('id', editor.column.id)
-      if (error) {
-        setErrorMessage('Could not rename that column.')
+      const result = await saveColumns(supabase, boardId, [columnRow(renamed)])
+      if (result !== 'ok') {
         setColumns(previous)
+        handleWriteResult(result, 'Could not rename that column.')
       }
       return
     }
 
-    const { data: created, error } = await supabase
-      .from('columns')
-      .insert({ board_id: boardId, name, position: columns.length })
-      .select()
-      .single()
-
-    if (error || !created) {
-      setErrorMessage('Could not create that column.')
-      return
+    const created: Column = {
+      id: crypto.randomUUID(),
+      board_id: boardId,
+      name,
+      position: columns.length,
+      created_at: new Date().toISOString(),
     }
-
     setColumns((current) => [...current, created])
+
+    const result = await saveColumns(supabase, boardId, [columnRow(created)])
+    if (result !== 'ok') {
+      setColumns((current) => current.filter((column) => column.id !== created.id))
+      handleWriteResult(result, 'Could not create that column.')
+    }
   }
 
   const deleteColumn = async (column: Column) => {
     setDeletingColumn(null)
+    if (!boardId) return
+
     const previousColumns = columns
     const previousCards = cards
     const nextColumns = previousColumns
@@ -500,34 +488,24 @@ function EditableBoard() {
     setColumns(nextColumns)
     setCards(previousCards.filter((card) => card.column_id !== column.id))
 
-    const response = await fetch(`/api/columns/${column.id}`, { method: 'DELETE' })
-    if (!response.ok) {
-      setErrorMessage('Could not delete that column.')
+    const result = await saveColumns(supabase, boardId, nextColumns.map(columnRow), [column.id])
+    if (result !== 'ok') {
       setColumns(previousColumns)
       setCards(previousCards)
-      return
+      handleWriteResult(result, 'Could not delete that column.')
     }
-
-    const { error } = await saveColumnOrder(nextColumns)
-    if (error) setErrorMessage('Could not renumber the remaining columns.')
   }
 
   const handleCreateBoard = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const { data: board, error } = await supabase
-      .from('boards')
-      .insert({ name: newBoardName })
-      .select()
-      .single()
-
-    if (error || !board) {
+    try {
+      const newBoardId = await createBoard(supabase, newBoardName, '', [], DEFAULT_LIFESPAN_DAYS)
+      router.push(`/board?id=${newBoardId}`)
+    } catch (error) {
+      console.error('Error creating board:', error)
       setErrorMessage('Could not create the board.')
-      return
     }
-
-    await supabase.from('columns').insert({ board_id: board.id, name: BACKLOG_NAME, position: -1 })
-    router.push(`/board?id=${board.id}`)
   }
 
   if (isAuthLoading) {
@@ -539,7 +517,7 @@ function EditableBoard() {
   }
 
   if (boardId && !isAuthenticated) {
-    return <PasswordProtection boardId={boardId} onSuccess={() => window.location.reload()} />
+    return <PasswordProtection unlock={unlock} notice={errorMessage} />
   }
 
   if (boardNotFound) {
@@ -604,6 +582,10 @@ function EditableBoard() {
     <div className="flex h-full flex-col overflow-hidden bg-canvas">
       <Navbar
         boardId={boardId}
+        boardName={boardName}
+        expiresAt={expiresAt}
+        onRenamed={setBoardName}
+        cards={cards}
         setBoardCards={setCards}
         setBacklogCards={setCards}
         backlogColumnId={backlogColumn?.id ?? null}
@@ -704,7 +686,6 @@ function EditableBoard() {
           onClose={() => setCardEditor(null)}
           onSave={saveCard}
           isEditing={!!cardEditor.card}
-          boardId={boardId}
           columnName={nameOfColumn(cardEditor.columnId)}
           initialData={
             cardEditor.card && {

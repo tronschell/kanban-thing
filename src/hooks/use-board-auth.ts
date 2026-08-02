@@ -1,8 +1,14 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import {
+  boardPassword,
+  forgetBoardPassword,
+  rememberBoardPassword,
+  type WriteResult,
+} from '@/lib/board-writes'
 
 export function useBoardAuth(boardId: string | null) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const supabase = useMemo(createClient, [])
 
@@ -18,33 +24,34 @@ export function useBoardAuth(boardId: string | null) {
       setIsLoading(true)
 
       try {
-        const { data: board } = await supabase
-          .from('boards')
-          .select('password_hash')
-          .eq('id', boardId)
-          .single()
-
+        const { data: needsPassword } = await supabase.rpc('board_requires_password', {
+          board_id_param: boardId,
+        })
         if (cancelled) return
 
-        if (!board?.password_hash) {
+        // null means the board does not exist: let board_read report not-found instead of
+        // showing a password form for a board nobody can ever unlock.
+        if (needsPassword !== true) {
           setIsAuthenticated(true)
           setIsLoading(false)
           return
         }
 
-        const hasStoredAccess = localStorage.getItem(`board_access_${boardId}`) === 'true'
-        const storedPassword = localStorage.getItem(`board_password_${boardId}`)
-
-        if (hasStoredAccess && storedPassword) {
-          const { data: isValid } = await supabase.rpc('verify_and_set_board_password', {
-            board_id_param: boardId,
-            password_attempt: storedPassword,
-          })
-          if (cancelled) return
-          setIsAuthenticated(isValid)
-        } else {
+        const stored = boardPassword(boardId)
+        if (!stored) {
           setIsAuthenticated(false)
+          setIsLoading(false)
+          return
         }
+
+        const { data: status } = await supabase.rpc('board_check_password', {
+          board_id_param: boardId,
+          password_attempt: stored,
+        })
+        if (cancelled) return
+
+        if (status === 'wrong_password') forgetBoardPassword(boardId)
+        setIsAuthenticated(status === 'ok')
       } catch (error) {
         if (cancelled) return
         console.error('Error checking board auth:', error)
@@ -60,5 +67,30 @@ export function useBoardAuth(boardId: string | null) {
     }
   }, [boardId, supabase])
 
-  return { isAuthenticated, isLoading }
+  const unlock = useCallback(
+    async (password: string): Promise<WriteResult> => {
+      if (!boardId) return 'not_found'
+
+      const { data, error } = await supabase.rpc('board_check_password', {
+        board_id_param: boardId,
+        password_attempt: password,
+      })
+      if (error) throw error
+
+      const status = data as WriteResult
+      if (status === 'ok') {
+        rememberBoardPassword(boardId, password)
+        setIsAuthenticated(true)
+      }
+      return status
+    },
+    [boardId, supabase]
+  )
+
+  const lock = useCallback(() => {
+    if (boardId) forgetBoardPassword(boardId)
+    setIsAuthenticated(false)
+  }, [boardId])
+
+  return { isAuthenticated, isLoading, unlock, lock }
 }

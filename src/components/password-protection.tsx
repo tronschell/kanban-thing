@@ -1,19 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Button, Input } from '@/components/ui'
+import type { WriteResult } from '@/lib/board-writes'
 
 interface PasswordProtectionProps {
-  boardId: string
-  onSuccess: () => void
+  unlock: (password: string) => Promise<WriteResult>
+  /** Why the board locked itself mid-session, when it did. */
+  notice?: string | null
 }
 
-export function PasswordProtection({ boardId, onSuccess }: PasswordProtectionProps) {
+export function PasswordProtection({ unlock, notice }: PasswordProtectionProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isVerifying, setIsVerifying] = useState(false)
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,33 +21,9 @@ export function PasswordProtection({ boardId, onSuccess }: PasswordProtectionPro
     setError('')
 
     try {
-      const response = await fetch('/api/board/password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ boardId, password, action: 'verify' }),
-      })
-
-      if (!response.ok) {
-        setError('Could not verify the password. Try again.')
-        return
-      }
-
-      const { success } = await response.json()
-
-      if (!success) {
-        setError('Incorrect password')
-        return
-      }
-
-      localStorage.setItem(`board_access_${boardId}`, 'true')
-      localStorage.setItem(`board_password_${boardId}`, password)
-
-      await supabase.rpc('verify_and_set_board_password', {
-        board_id_param: boardId,
-        password_attempt: password,
-      })
-
-      onSuccess()
+      const result = await unlock(password)
+      if (result === 'wrong_password') setError('Incorrect password')
+      if (result === 'not_found') setError('This board no longer exists.')
     } catch (err) {
       console.error('Error verifying password:', err)
       setError('Could not verify the password. Try again.')
@@ -66,6 +42,12 @@ export function PasswordProtection({ boardId, onSuccess }: PasswordProtectionPro
         <p className="mt-1 text-xs text-muted">
           Enter the board password to continue.
         </p>
+
+        {notice && (
+          <p role="alert" className="mt-3 rounded-control border border-danger bg-danger-soft px-2.5 py-2 text-xs text-danger">
+            {notice}
+          </p>
+        )}
 
         <div className="mt-4">
           <label htmlFor="board-password" className="block text-xs font-medium text-muted mb-1.5">

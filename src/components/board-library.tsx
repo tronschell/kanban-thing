@@ -7,6 +7,7 @@ import { saveAs } from 'file-saver'
 import { AlertTriangle, Download, HardDrive, Upload, X } from 'lucide-react'
 import { Badge, Button, IconButton, Input, Skeleton } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
+import { boardPassword } from '@/lib/board-writes'
 import {
   forgetBoards,
   parseEntries,
@@ -17,18 +18,27 @@ import {
   type PreviewColumn,
 } from '@/lib/board-library'
 
-/**
- * The only place the library reads board rows. When the `board_summary(board_id, password)`
- * RPC lands, this function is the single site that changes.
- */
-const fetchBoardSummaries = async (ids: string[]) => {
-  const { data, error } = await createClient()
-    .from('boards')
-    .select('id, name, expires_at')
-    .in('id', ids)
+type BoardSummary = {
+  status: 'ok' | 'wrong_password' | 'not_found' | 'unreachable'
+  name?: string
+  expires_at?: string
+}
 
-  if (error || !data) return null
-  return data as { id: string; name: string; expires_at: string }[]
+/** One `board_summary` per board: it reads no cards, so listing a library stays cheap. */
+const fetchBoardSummaries = async (ids: string[]) => {
+  const supabase = createClient()
+
+  const summaries = await Promise.all(
+    ids.map(async (id): Promise<[string, BoardSummary]> => {
+      const { data, error } = await supabase.rpc('board_summary', {
+        board_id_param: id,
+        password_attempt: boardPassword(id),
+      })
+      return [id, error ? { status: 'unreachable' } : (data as BoardSummary)]
+    })
+  )
+
+  return new Map(summaries)
 }
 
 const timeLeft = (expiresAt: string) => {
@@ -149,25 +159,25 @@ export function BoardLibrary() {
     setLibrary(current)
     if (current.entries.length === 0) return
 
-    const rows = await fetchBoardSummaries(current.entries.map((entry) => entry.id))
-    if (!rows) {
-      setCheckFailed(true)
-      return
-    }
+    const live = await fetchBoardSummaries(current.entries.map((entry) => entry.id))
+    const statusOf = (id: string) => live.get(id)?.status
 
-    const live = new Map(rows.map((row) => [row.id, row]))
     const next = {
       ...current,
       entries: current.entries.map((entry) => {
-        const row = live.get(entry.id)
-        return row ? { ...entry, name: row.name, expiresAt: row.expires_at } : entry
+        const summary = live.get(entry.id)
+        return summary?.status === 'ok'
+          ? { ...entry, name: summary.name!, expiresAt: summary.expires_at! }
+          : entry
       }),
     }
 
     writeLibrary(next)
     setLibrary(next)
-    setGoneIds(current.entries.filter((entry) => !live.has(entry.id)).map((entry) => entry.id))
-    setCheckFailed(false)
+    setGoneIds(
+      current.entries.filter((entry) => statusOf(entry.id) === 'not_found').map((entry) => entry.id)
+    )
+    setCheckFailed(current.entries.some((entry) => statusOf(entry.id) === 'unreachable'))
   }, [])
 
   useEffect(() => {

@@ -1,29 +1,16 @@
 import { saveAs } from 'file-saver'
 import { createClient } from '@/lib/supabase/client'
-import { Card } from '@/types'
+import { columnRow, readBoard } from '@/lib/board-writes'
 
 const fileStamp = () => new Date().toISOString().replace(/[:.]/g, '-')
 
 const csvCell = (value: string | number | null) => `"${String(value ?? '').replace(/"/g, '""')}"`
 
 async function fetchBoardData(boardId: string) {
-  const supabase = createClient()
+  const payload = await readBoard(createClient(), boardId)
+  if (payload.status !== 'ok') throw new Error(payload.status)
 
-  const { data: columns } = await supabase
-    .from('columns')
-    .select('id, name, position')
-    .eq('board_id', boardId)
-    .order('position')
-
-  const { data: cards } = await supabase
-    .from('cards')
-    .select('*')
-    .in('column_id', columns?.map((column) => column.id) ?? [])
-
-  return {
-    columns: (columns ?? []) as { id: string; name: string; position: number }[],
-    cards: (cards ?? []) as Card[],
-  }
+  return { columns: payload.columns.map(columnRow), cards: payload.cards }
 }
 
 export async function exportBoardAsJson(boardId: string) {

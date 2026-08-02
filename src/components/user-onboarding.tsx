@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { createBoard, rememberBoardPassword } from '@/lib/board-writes'
 import { useAnalytics } from '@/hooks/use-analytics'
 import { Button, Input, Select } from '@/components/ui'
 import { DEFAULT_LIFESPAN_DAYS, LIFESPAN_OPTIONS, expiryDateFor } from '@/lib/board-lifespan'
@@ -59,17 +60,9 @@ export default function UserOnboarding() {
 
     setIsCreating(true)
     try {
-      const { data: boardId, error: createError } = await supabase.rpc('board_create', {
-        name_param: name,
-        password_param: password,
-        extra_columns: DEFAULT_COLUMNS,
-        days_param: lifespanDays,
-      })
+      const boardId = await createBoard(supabase, name, password, DEFAULT_COLUMNS, lifespanDays)
 
-      if (createError || !boardId) throw createError ?? new Error('Failed to create board')
-
-      localStorage.setItem(`board_password_${boardId}`, password)
-      localStorage.setItem(`board_access_${boardId}`, 'true')
+      rememberBoardPassword(boardId, password)
       localStorage.setItem('kanban_user_id', boardId)
 
       trackEvent('create_board', { board_id: boardId, board_name: name })

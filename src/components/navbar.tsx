@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { LibraryBig, Plus, Terminal as TerminalIcon, TriangleAlert } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui'
@@ -19,20 +19,22 @@ import {
 import { ThemePicker } from '@/components/theme-picker'
 import { exportBoardAsCsv, exportBoardAsJson } from '@/components/navbar/board-export'
 import { runBoardCommand } from '@/components/navbar/board-commands'
-import { useBoardExpiration, useHoursLeft } from '@/hooks/use-board-expiration'
+import { useHoursLeft } from '@/hooks/use-board-expiration'
 import { EXPIRY_WARNING_HOURS, expiryWarningText } from '@/lib/board-lifespan'
 import { numbered } from '@/components/board/dnd'
 import { createClient } from '@/lib/supabase/client'
-import { ensureBoardPassword } from '@/lib/board-writes'
+import { cardRow, columnRow, saveCards, saveColumns, writeMessage } from '@/lib/board-writes'
 import { Card, Column } from '@/types'
 
 interface NavbarProps {
   boardId?: string
   /** Renders the board name and expiry only: no Create, terminal, share or board menu. */
   readOnly?: boolean
-  /** Required when readOnly: the anon role cannot select from `boards`. */
+  /** The anon role cannot select from `boards`: both come from the caller's `board_read`. */
   boardName?: string
   expiresAt?: string
+  onRenamed?: (name: string) => void
+  cards?: Card[]
   setBoardCards?: React.Dispatch<React.SetStateAction<Card[]>>
   setBacklogCards?: React.Dispatch<React.SetStateAction<Card[]>>
   backlogColumnId?: string | null
@@ -55,8 +57,10 @@ type Modal =
 export default function Navbar({
   boardId,
   readOnly,
-  boardName,
+  boardName = '',
   expiresAt,
+  onRenamed = () => {},
+  cards = [],
   setBoardCards,
   setBacklogCards,
   backlogColumnId,
@@ -65,146 +69,99 @@ export default function Navbar({
   onError,
 }: NavbarProps) {
   const [openModal, setOpenModal] = useState<Modal>(null)
-  const [loadedName, setLoadedName] = useState('')
-  const [cardTitles, setCardTitles] = useState<{ title: string }[]>([])
-  const loadedExpiresAt = useBoardExpiration(readOnly ? undefined : boardId)
   const supabase = useMemo(createClient, [])
+  const hoursLeft = useHoursLeft(expiresAt ?? null)
 
-  const displayName = readOnly ? boardName ?? '' : loadedName
-  const displayExpiresAt = readOnly ? expiresAt : loadedExpiresAt
-  const hoursLeft = useHoursLeft(displayExpiresAt ?? null)
+  const cardTitles = useMemo(
+    () =>
+      [...cards].sort((a, b) => a.title.localeCompare(b.title)).map(({ title }) => ({ title })),
+    [cards]
+  )
 
-  useEffect(() => {
-    if (!boardId || readOnly) return
-    let cancelled = false
+  const cardsInColumn = (columnId: string) => cards.filter((card) => card.column_id === columnId)
 
-    supabase
-      .from('boards')
-      .select('name')
-      .eq('id', boardId)
-      .single()
-      .then(({ data }) => !cancelled && data && setLoadedName(data.name))
-
-    return () => {
-      cancelled = true
-    }
-  }, [boardId, readOnly, supabase])
-
-  const refreshCardTitles = useCallback(async () => {
-    if (!boardId) return
-    const { data } = await supabase
-      .from('cards')
-      .select('title, columns!inner(board_id)')
-      .eq('columns.board_id', boardId)
-      .order('title')
-    if (data) setCardTitles(data.map(({ title }) => ({ title })))
-  }, [boardId, supabase])
-
-  useEffect(() => {
-    if (openModal !== 'terminal') return
-    refreshCardTitles()
-  }, [openModal, refreshCardTitles])
+  const applyToColumn = (columnId: string) =>
+    columnId === backlogColumnId ? setBacklogCards : setBoardCards
 
   const handleCreateCard = async (
     columnId: string,
     cardData: { title: string; description: string; color: string | null; due_date: string | null }
   ) => {
     if (!boardId) return
-    await ensureBoardPassword(supabase, boardId)
 
-    const { count } = await supabase
-      .from('cards')
-      .select('id', { count: 'exact', head: true })
-      .eq('column_id', columnId)
+    const created: Card = {
+      ...cardData,
+      id: crypto.randomUUID(),
+      column_id: columnId,
+      position: cardsInColumn(columnId).length,
+      created_at: new Date().toISOString(),
+    }
 
-    const { data: newCard, error } = await supabase
-      .from('cards')
-      .insert({ column_id: columnId, ...cardData, position: count ?? 0 })
-      .select('*')
-      .single()
-
-    if (error || !newCard) {
-      console.error('Error creating card:', error)
-      onError?.('Could not create that card.')
+    const result = await saveCards(supabase, boardId, [cardRow(created)])
+    if (result !== 'ok') {
+      onError?.(writeMessage(result, 'Could not create that card.'))
       return
     }
 
-    const setCards = columnId === backlogColumnId ? setBacklogCards : setBoardCards
-    setCards?.((prev) => [...prev, newCard])
+    applyToColumn(columnId)?.((prev) => [...prev, created])
   }
 
   const handleCreateCards = async (columnId: string, titles: string[]) => {
     if (!boardId) return
-    await ensureBoardPassword(supabase, boardId)
-
-    const { data: existing, error: readError } = await supabase
-      .from('cards')
-      .select('*')
-      .eq('column_id', columnId)
-      .order('position')
-
-    if (readError) {
-      console.error('Error reading cards:', readError)
-      onError?.('Could not add those cards.')
-      throw readError
-    }
 
     const fresh = titles.map(
-      (title) =>
-        ({
-          id: crypto.randomUUID(),
-          column_id: columnId,
-          title,
-          description: null,
-          color: null,
-          due_date: null,
-        }) as Card
+      (title): Card => ({
+        id: crypto.randomUUID(),
+        column_id: columnId,
+        title,
+        description: null,
+        color: null,
+        due_date: null,
+        position: 0,
+        created_at: new Date().toISOString(),
+      })
     )
+    const merged = numbered([...cardsInColumn(columnId), ...fresh])
 
-    const rows = numbered([...((existing ?? []) as Card[]), ...fresh]).map((card) => ({
-      id: card.id,
-      column_id: card.column_id,
-      title: card.title,
-      description: card.description,
-      color: card.color,
-      due_date: card.due_date,
-      position: card.position,
-    }))
-
-    const { data: saved, error } = await supabase
-      .from('cards')
-      .upsert(rows, { onConflict: 'id' })
-      .select('*')
-
-    if (error || !saved) {
-      console.error('Error creating cards:', error)
-      onError?.('Could not add those cards.')
-      throw error ?? new Error('Could not add those cards.')
+    const result = await saveCards(supabase, boardId, merged.map(cardRow))
+    if (result !== 'ok') {
+      const message = writeMessage(result, 'Could not add those cards.')
+      onError?.(message)
+      throw new Error(message)
     }
 
-    const column = (saved as Card[]).sort((a, b) => a.position - b.position)
-    const setCards = columnId === backlogColumnId ? setBacklogCards : setBoardCards
-    setCards?.((prev) => [...prev.filter((card) => card.column_id !== columnId), ...column])
+    applyToColumn(columnId)?.((prev) => [
+      ...prev.filter((card) => card.column_id !== columnId),
+      ...merged,
+    ])
   }
 
   const handleCreateColumn = async (name: string) => {
     if (!boardId) return
-    await ensureBoardPassword(supabase, boardId)
 
-    const position = columns.filter((column) => column.position >= 0).length
-    const { data: newColumn, error } = await supabase
-      .from('columns')
-      .insert({ name, board_id: boardId, position })
-      .select('*')
-      .single()
+    const created: Column = {
+      id: crypto.randomUUID(),
+      board_id: boardId,
+      name,
+      position: columns.filter((column) => column.position >= 0).length,
+      created_at: new Date().toISOString(),
+    }
 
-    if (error || !newColumn) {
-      console.error('Error creating column:', error)
-      onError?.('Could not create that column.')
+    const result = await saveColumns(supabase, boardId, [columnRow(created)])
+    if (result !== 'ok') {
+      onError?.(writeMessage(result, 'Could not create that column.'))
       return
     }
 
-    setColumns?.((prev) => [...prev, newColumn])
+    setColumns?.((prev) => [...prev, created])
+  }
+
+  const exportBoard = (download: (boardId: string) => Promise<void>) => {
+    if (!boardId) return
+    download(boardId).catch((error) => {
+      console.error('Board export failed:', error)
+      onError?.('Could not export this board.')
+    })
   }
 
   const closeModal = () => setOpenModal(null)
@@ -224,7 +181,7 @@ export default function Navbar({
             <span aria-hidden className="text-subtle">
               /
             </span>
-            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{displayName}</h1>
+            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{boardName}</h1>
 
             <div className="flex shrink-0 items-center gap-1">
               {hoursLeft !== null && (
@@ -261,8 +218,8 @@ export default function Navbar({
                     onDuplicate={() => setOpenModal('duplicate')}
                     onSetPassword={() => setOpenModal('password')}
                     onLifespan={() => setOpenModal('lifespan')}
-                    onExportJson={() => exportBoardAsJson(boardId)}
-                    onExportCsv={() => exportBoardAsCsv(boardId)}
+                    onExportJson={() => exportBoard(exportBoardAsJson)}
+                    onExportCsv={() => exportBoard(exportBoardAsCsv)}
                     onDelete={() => setOpenModal('delete')}
                   />
                 </>
@@ -282,7 +239,7 @@ export default function Navbar({
             {expiryWarningText(hoursLeft)} It cannot be renewed, so export it now or duplicate it
             into a fresh board.
           </p>
-          <Button size="sm" onClick={() => exportBoardAsJson(boardId)}>
+          <Button size="sm" onClick={() => exportBoard(exportBoardAsJson)}>
             Export JSON
           </Button>
         </div>
@@ -304,17 +261,16 @@ export default function Navbar({
           <TerminalInterface
             isOpen={openModal === 'terminal'}
             onClose={closeModal}
-            onCommand={async (command) => {
-              const response = await runBoardCommand(command, {
+            onCommand={(command) =>
+              runBoardCommand(command, {
                 boardId,
                 columns,
+                cards,
                 backlogColumnId,
                 setBoardCards,
                 setBacklogCards,
               })
-              await refreshCardTitles()
-              return response
-            }}
+            }
             availableCards={cardTitles}
             availableColumns={columns}
           />
@@ -323,15 +279,15 @@ export default function Navbar({
             open={openModal === 'rename'}
             onClose={closeModal}
             boardId={boardId}
-            boardName={loadedName}
-            onRenamed={setLoadedName}
+            boardName={boardName}
+            onRenamed={onRenamed}
           />
 
           <DuplicateBoardModal
             open={openModal === 'duplicate'}
             onClose={closeModal}
             boardId={boardId}
-            boardName={displayName}
+            boardName={boardName}
           />
 
           <SetPasswordModal
@@ -343,7 +299,7 @@ export default function Navbar({
           <BoardLifespanModal
             open={openModal === 'lifespan'}
             onClose={closeModal}
-            expiresAt={displayExpiresAt ?? null}
+            expiresAt={expiresAt ?? null}
           />
 
           <DeleteBoardModal open={openModal === 'delete'} onClose={closeModal} boardId={boardId} />

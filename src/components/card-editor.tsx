@@ -5,9 +5,7 @@ import { Ban } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Button, IconButton, Input, Modal, ModalFooter, Textarea } from '@/components/ui'
 import DueDatePicker from '@/components/due-date-picker'
-import { createClient } from '@/lib/supabase/client'
 import { dayToDueDate, dueDateToDay } from '@/lib/date-utils'
-import { ensureBoardPassword } from '@/lib/board-writes'
 import { LABEL_COLORS, LABEL_COLOR_NAMES } from '@/lib/colors'
 import { cn } from '@/lib/utils'
 
@@ -28,7 +26,6 @@ interface CardEditorProps {
     due_date: string | null
   }
   isEditing?: boolean
-  boardId?: string
 }
 
 export default function CardEditor({
@@ -38,7 +35,6 @@ export default function CardEditor({
   columnName,
   initialData,
   isEditing,
-  boardId,
 }: CardEditorProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -47,7 +43,6 @@ export default function CardEditor({
   const [isPreview, setIsPreview] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [titleError, setTitleError] = useState('')
-  const supabase = createClient()
 
   // initialData is rebuilt by the parent on every render, so opening is the only safe trigger.
   useEffect(() => {
@@ -72,8 +67,6 @@ export default function CardEditor({
 
     setIsSaving(true)
     try {
-      if (boardId) await ensureBoardPassword(supabase, boardId)
-
       await onSave({
         title: title.trim(),
         description,

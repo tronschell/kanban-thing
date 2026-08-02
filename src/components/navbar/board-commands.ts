@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { recordCardHistory } from '@/lib/board-writes'
+import { cardRow, readBoard, saveCards, writeMessage } from '@/lib/board-writes'
 import { dayToDueDate, dueDateToDay } from '@/lib/date-utils'
 import { Card, Column } from '@/types'
 
@@ -12,12 +12,11 @@ export interface CommandResponse {
 export interface BoardCommandContext {
   boardId: string
   columns: Column[]
+  cards: Card[]
   backlogColumnId?: string | null
   setBoardCards?: Dispatch<SetStateAction<Card[]>>
   setBacklogCards?: Dispatch<SetStateAction<Card[]>>
 }
-
-type SnapshotCard = Card & { card_history: { timestamp: string }[] }
 
 const ALIASES: Record<string, string> = {
   cr: 'create',
@@ -66,7 +65,7 @@ const nextPosition = (cards: Card[], columnId: string) =>
     .filter((card) => card.column_id === columnId)
     .reduce((next, card) => Math.max(next, card.position + 1), 0)
 
-const cardsTitled = (cards: SnapshotCard[], title: string) =>
+const cardsTitled = (cards: Card[], title: string) =>
   cards.filter((card) => card.title.toLowerCase() === title.toLowerCase())
 
 const localDay = (date: Date) =>
@@ -76,12 +75,6 @@ const isRealDay = (day: string) => {
   const [year, month, date] = day.split('-').map(Number)
   return localDay(new Date(year, month - 1, date)) === day
 }
-
-const lastActivity = (card: SnapshotCard) =>
-  card.card_history.reduce(
-    (latest, entry) => Math.max(latest, new Date(entry.timestamp).getTime()),
-    new Date(card.created_at).getTime()
-  )
 
 const listFor = (ctx: BoardCommandContext, columnId: string) =>
   columnId === ctx.backlogColumnId ? ctx.setBacklogCards : ctx.setBoardCards
@@ -106,23 +99,9 @@ export async function runBoardCommand(
   const supabase = createClient()
   const columns = ctx.columns
   if (columns.length === 0) return failure('The board is still loading.')
-  const columnIds = columns.map((column) => column.id)
+  const snapshot = ctx.cards
 
   try {
-    const { data: authorized } = await supabase.rpc('verify_and_set_board_password', {
-      board_id_param: ctx.boardId,
-      password_attempt: localStorage.getItem(`board_password_${ctx.boardId}`) ?? '',
-    })
-    if (authorized !== true) return failure('Board password required.')
-
-    const { data, error } = await supabase
-      .from('cards')
-      .select('*, card_history(timestamp)')
-      .in('column_id', columnIds)
-      .order('position')
-    if (error) throw error
-    const snapshot = (data ?? []) as unknown as SnapshotCard[]
-
     if (action === 'create') {
       const flagsAt = input.indexOf('--')
       const head = (flagsAt === -1 ? input : input.slice(0, flagsAt)).trim().split(/\s+/).slice(1)
@@ -144,21 +123,20 @@ export async function runBoardCommand(
         return failure('Usage: --due YYYY-MM-DD')
       }
 
-      const { data: created, error: createError } = await supabase
-        .from('cards')
-        .insert({
-          column_id: column.id,
-          title,
-          description,
-          color,
-          due_date: dueDay ? dayToDueDate(dueDay) : null,
-          position: nextPosition(snapshot, column.id),
-        })
-        .select('*')
-        .single()
+      const created: Card = {
+        id: crypto.randomUUID(),
+        column_id: column.id,
+        title,
+        description,
+        color,
+        due_date: dueDay ? dayToDueDate(dueDay) : null,
+        position: nextPosition(snapshot, column.id),
+        created_at: new Date().toISOString(),
+      }
 
-      if (createError) throw createError
-      if (created) addCard(ctx, created as Card)
+      const result = await saveCards(supabase, ctx.boardId, [cardRow(created)])
+      if (result !== 'ok') return failure(writeMessage(result, 'The command failed.'))
+      addCard(ctx, created)
 
       return ok(`Created "${title}" in ${column.name}`)
     }
@@ -183,24 +161,12 @@ export async function runBoardCommand(
       const card = matches[0]
       if (card.column_id === column.id) return ok(`"${card.title}" is already in ${column.name}`)
 
-      const position = nextPosition(snapshot, column.id)
-      const { data: moved, error: moveError } = await supabase
-        .from('cards')
-        .update({ column_id: column.id, position })
-        .eq('id', card.id)
-        .select('id')
-      if (moveError) throw moveError
-      if (!moved?.length) return failure('The move was rejected. Reload and try again.')
-
-      await recordCardHistory(
-        supabase,
-        card.id,
-        nameOfColumn(columns, card.column_id),
-        column.name
-      )
+      const moved = { ...card, column_id: column.id, position: nextPosition(snapshot, column.id) }
+      const result = await saveCards(supabase, ctx.boardId, [cardRow(moved)])
+      if (result !== 'ok') return failure(writeMessage(result, 'The command failed.'))
 
       removeCard(ctx, card)
-      addCard(ctx, { ...card, column_id: column.id, position })
+      addCard(ctx, moved)
 
       return ok(`Moved "${card.title}" to ${column.name}`)
     }
@@ -215,13 +181,8 @@ export async function runBoardCommand(
         return failure(`${matches.length} cards match "${title}". Use a longer title.`)
       }
 
-      const { data: deleted, error: deleteError } = await supabase
-        .from('cards')
-        .delete()
-        .eq('id', matches[0].id)
-        .select('id')
-      if (deleteError) throw deleteError
-      if (!deleted?.length) return failure('The delete was rejected. Reload and try again.')
+      const result = await saveCards(supabase, ctx.boardId, [], [matches[0].id])
+      if (result !== 'ok') return failure(writeMessage(result, 'The command failed.'))
 
       removeCard(ctx, matches[0])
 
@@ -260,6 +221,19 @@ export async function runBoardCommand(
     if (action === 'stuck') {
       const days = words[1] === undefined ? 7 : Number(words[1])
       if (!Number.isFinite(days) || days < 0) return failure('Usage: stuck [days]')
+
+      const board = await readBoard(supabase, ctx.boardId, true)
+      if (board.status !== 'ok') {
+        return failure(writeMessage(board.status, 'The command failed.'))
+      }
+
+      const movedAt = new Map<string, number>()
+      for (const entry of board.card_history) {
+        const at = new Date(entry.timestamp).getTime()
+        movedAt.set(entry.card_id, Math.max(movedAt.get(entry.card_id) ?? 0, at))
+      }
+      const lastActivity = (card: Card) =>
+        Math.max(new Date(card.created_at).getTime(), movedAt.get(card.id) ?? 0)
 
       const rightmost = columns[columns.length - 1]?.id
       const hits = snapshot

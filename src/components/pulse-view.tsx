@@ -5,6 +5,7 @@ import { differenceInDays, format, formatDistanceToNow } from 'date-fns'
 import { ArrowRight, Check, Copy } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
+import { readBoard } from '@/lib/board-writes'
 import { dueDateToDay, formatDueDate } from '@/lib/date-utils'
 import { Badge, Button, Skeleton } from '@/components/ui'
 
@@ -131,41 +132,34 @@ export default function PulseView({ boardId }: { boardId: string }) {
     const load = async () => {
       setLoading(true)
       setFailed(false)
-      const supabase = createClient()
 
-      const { data: columnRows, error: columnError } = await supabase
-        .from('columns')
-        .select('id, name, position')
-        .eq('board_id', boardId)
-        .order('position')
-
+      const board = await readBoard(createClient(), boardId, true).catch(error => {
+        console.error('Failed to load card activity', error)
+        return null
+      })
       if (cancelled) return
-      if (columnError) {
-        console.error('Failed to load board columns', columnError)
+
+      if (board === null || board.status !== 'ok') {
         setFailed(true)
         setLoading(false)
         return
       }
 
-      const loadedColumns = (columnRows ?? []) as PulseColumn[]
-      const { data: cardRows, error: cardError } = await supabase
-        .from('cards')
-        .select('id, title, due_date, created_at, column_id, card_history(from_column, to_column, timestamp)')
-        .in('column_id', loadedColumns.map(column => column.id))
-
-      if (cancelled) return
-      if (cardError) {
-        console.error('Failed to load card activity', cardError)
-        setFailed(true)
-        setLoading(false)
-        return
+      const movesByCard = new Map<string, Move[]>()
+      for (const entry of board.card_history) {
+        movesByCard.set(entry.card_id, [...(movesByCard.get(entry.card_id) ?? []), entry])
       }
 
-      setColumns(loadedColumns)
+      setColumns(board.columns)
       setCards(
-        ((cardRows ?? []) as unknown as (Omit<PulseCard, 'card_history'> & {
-          card_history: Move[] | null
-        })[]).map(card => ({ ...card, card_history: card.card_history ?? [] }))
+        board.cards.map(card => ({
+          id: card.id,
+          title: card.title,
+          due_date: card.due_date,
+          created_at: card.created_at,
+          column_id: card.column_id,
+          card_history: movesByCard.get(card.id) ?? [],
+        }))
       )
       setLoading(false)
     }

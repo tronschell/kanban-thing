@@ -5,15 +5,10 @@ import { format, subDays } from 'date-fns'
 import { ArrowRight, GitCommit } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
+import { readBoard } from '@/lib/board-writes'
 import { formatDueDate, isDueSoon } from '@/lib/date-utils'
 import { Badge, Button, Modal, Select, Skeleton } from '@/components/ui'
-
-interface HistoryEntry {
-  id: string
-  from_column: string
-  to_column: string
-  timestamp: string
-}
+import type { CardHistory } from '@/types'
 
 interface TimelineCard {
   id: string
@@ -23,12 +18,7 @@ interface TimelineCard {
   due_date: string | null
   created_at: string
   column_name: string
-  card_history: HistoryEntry[]
-}
-
-type TimelineCardRow = Omit<TimelineCard, 'column_name' | 'card_history'> & {
-  columns: { name: string } | null
-  card_history: HistoryEntry[] | null
+  card_history: CardHistory[]
 }
 
 interface Entry {
@@ -150,6 +140,7 @@ function TimelineSkeleton() {
 export default function TimelineView({ boardId }: { boardId: string }) {
   const [cards, setCards] = useState<TimelineCard[]>([])
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
   const [range, setRange] = useState<Range>('30')
   const [sortBy, setSortBy] = useState<SortBy>('updated')
 
@@ -158,26 +149,37 @@ export default function TimelineView({ boardId }: { boardId: string }) {
 
     const load = async () => {
       setLoading(true)
-      const { data, error } = await createClient()
-        .from('cards')
-        .select(
-          'id, title, description, color, due_date, created_at, columns!inner(name, board_id), card_history(id, from_column, to_column, timestamp)'
-        )
-        .eq('columns.board_id', boardId)
+      setFailed(false)
 
+      const board = await readBoard(createClient(), boardId, true).catch(error => {
+        console.error('Failed to load card history', error)
+        return null
+      })
       if (cancelled) return
-      if (error) console.error('Failed to load card history', error)
+
+      if (board === null || board.status !== 'ok') {
+        setCards([])
+        setFailed(true)
+        setLoading(false)
+        return
+      }
+
+      const columnNames = new Map(board.columns.map(column => [column.id, column.name]))
+      const historyByCard = new Map<string, CardHistory[]>()
+      for (const entry of board.card_history) {
+        historyByCard.set(entry.card_id, [...(historyByCard.get(entry.card_id) ?? []), entry])
+      }
 
       setCards(
-        ((data ?? []) as unknown as TimelineCardRow[]).map(card => ({
+        board.cards.map(card => ({
           id: card.id,
           title: card.title,
           description: card.description,
           color: card.color,
           due_date: card.due_date,
           created_at: card.created_at,
-          column_name: card.columns?.name ?? '',
-          card_history: card.card_history ?? [],
+          column_name: columnNames.get(card.column_id) ?? '',
+          card_history: historyByCard.get(card.id) ?? [],
         }))
       )
       setLoading(false)
@@ -198,6 +200,14 @@ export default function TimelineView({ boardId }: { boardId: string }) {
   }, [cards, range, sortBy])
 
   if (loading) return <TimelineSkeleton />
+
+  if (failed) {
+    return (
+      <p className="rounded-card border border-dashed border-subtle py-6 text-center text-xs text-subtle">
+        Could not read this board&apos;s history.
+      </p>
+    )
+  }
 
   return (
     <div>
