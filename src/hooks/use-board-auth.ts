@@ -10,6 +10,7 @@ import {
 export function useBoardAuth(boardId: string | null) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [checkFailed, setCheckFailed] = useState(false)
   const supabase = useMemo(createClient, [])
 
   useEffect(() => {
@@ -22,12 +23,21 @@ export function useBoardAuth(boardId: string | null) {
       }
 
       setIsLoading(true)
+      setCheckFailed(false)
 
       try {
-        const { data: needsPassword } = await supabase.rpc('board_requires_password', {
+        const { data: needsPassword, error } = await supabase.rpc('board_requires_password', {
           board_id_param: boardId,
         })
         if (cancelled) return
+
+        if (error) {
+          console.error('Error checking board auth:', error)
+          setCheckFailed(true)
+          setIsAuthenticated(false)
+          setIsLoading(false)
+          return
+        }
 
         // null means the board does not exist: let board_read report not-found instead of
         // showing a password form for a board nobody can ever unlock.
@@ -89,8 +99,9 @@ export function useBoardAuth(boardId: string | null) {
 
   const lock = useCallback(() => {
     if (boardId) forgetBoardPassword(boardId)
+    setCheckFailed(false)
     setIsAuthenticated(false)
   }, [boardId])
 
-  return { isAuthenticated, isLoading, unlock, lock }
+  return { isAuthenticated, isLoading, checkFailed, unlock, lock }
 }

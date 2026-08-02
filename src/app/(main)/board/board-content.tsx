@@ -125,7 +125,13 @@ function EditableBoard() {
   const boardId = searchParams.get('id')
   const supabase = useMemo(() => createClient(), [])
   const { trackEvent } = useAnalytics()
-  const { isAuthenticated, isLoading: isAuthLoading, unlock, lock } = useBoardAuth(boardId)
+  const {
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    checkFailed,
+    unlock,
+    lock,
+  } = useBoardAuth(boardId)
 
   const [currentView, setCurrentView] = useState<'kanban' | 'calendar' | 'timeline' | 'pulse'>(
     'kanban'
@@ -507,7 +513,10 @@ function EditableBoard() {
   }
 
   if (boardId && !isAuthenticated) {
-    return <PasswordProtection unlock={unlock} notice={errorMessage} />
+    const checkFailedNotice = checkFailed
+      ? 'Could not check this board. Enter its password to try again.'
+      : null
+    return <PasswordProtection unlock={unlock} notice={errorMessage ?? checkFailedNotice} />
   }
 
   if (boardNotFound) {
