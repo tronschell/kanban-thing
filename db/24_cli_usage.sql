@@ -1,4 +1,4 @@
--- Run after 22. Idempotent: re-running adds nothing and loses no counts.
+-- Run after 23. Idempotent: re-running adds nothing and loses no counts.
 -- Aggregate CLI telemetry with no identifiers in it: a daily count per version and nothing else.
 -- anon reaches the table only through the two functions below, so there is no row to correlate
 -- and no column that could grow one later.
