@@ -150,7 +150,8 @@ export default function ReadOnlyBoardLinksGuide() {
         Because access is per board rather than per person, the answer to
         &quot;these five people should see everything and these three should see
         only part of it&quot; is two boards, not one board with permissions.
-        Duplicating is quick — same columns, same password, fresh lifespan, and
+        Duplicating is quick — same columns, same password, a fresh 60-day
+        lifespan, and
         an <em>Include cards</em> toggle if you want the layout without the
         contents — so splitting a board is a smaller job than it sounds.
       </p>

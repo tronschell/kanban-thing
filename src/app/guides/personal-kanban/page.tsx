@@ -29,10 +29,18 @@ export default function PersonalKanbanGuide() {
         >
           <em>Personal Kanban</em>
         </a>
-        , the 2011 book by Jim Benson and Tonianne DeMaria Barry, which reduces
-        the practice to two rules: visualise your work, and limit your work in
-        progress. That is the whole method. Everything below is just a way of
-        keeping those two rules when nobody else is watching.
+        , the 2011 book by Jim Benson and Tonianne DeMaria Barry. Its co-author
+        puts the method at{" "}
+        <a
+          href="https://agilehumans.city/essence-of-personal-kanban"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          two rules
+        </a>
+        : visualise your work, and limit your work in progress. That is all of
+        it. Everything below is just a way of keeping those two rules when
+        nobody else is watching.
       </p>
       <p>
         The reason it works better than a to-do list is that a list has no
@@ -187,10 +195,12 @@ export default function PersonalKanbanGuide() {
       </p>
       <p>
         Pick 28 days and treat the expiry as a scheduled reset. Near the end,
-        duplicate the board with <em>Include cards</em> switched off to get the
-        same columns and password on a clean board, then move across only what
-        you still actually intend to do. Whatever you do not carry over was
-        answering the question for you.
+        create the next board and move across only what you still actually
+        intend to do. Whatever you do not carry over was answering the question
+        for you. Duplicating the old board with <em>Include cards</em> switched
+        off copies the columns and password for you, but a duplicate always
+        starts a 60-day lifespan, so start from scratch if you want to keep the
+        shorter cadence.
       </p>
       <p>
         If you want the record, export to JSON or CSV from the board menu before

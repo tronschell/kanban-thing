@@ -209,7 +209,7 @@ export default function KanbanColumnsGuide() {
         names stop describing reality. If the layout has drifted far enough that
         you want a clean start, duplicate the board with <em>Include cards</em>{" "}
         switched off: you get the same columns, the same password and a fresh
-        lifespan, with nothing on it.
+        60-day lifespan, with nothing on it.
       </p>
       <p>
         That is also a decent way to keep a house layout around, since{" "}
