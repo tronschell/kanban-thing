@@ -31,6 +31,7 @@ import CardDetail from '@/components/card-detail'
 import CardEditor from '@/components/card-editor'
 import ColumnEditor from '@/components/column-editor'
 import { CardPreview } from '@/components/sortable-card'
+import { HorizontalScrollArea } from '@/components/horizontal-scroll-area'
 import { PasswordProtection } from '@/components/password-protection'
 import ReadOnlyBoard from '@/components/read-only-board'
 import { Button, IconButton, Input, Modal, ModalFooter, Skeleton } from '@/components/ui'
@@ -621,7 +622,10 @@ function EditableBoard() {
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-3 pb-3 scrollbar-thin">
+          <HorizontalScrollArea
+            aria-label="Board columns"
+            viewportClassName="flex h-full min-h-0 gap-3 px-3 pb-3"
+          >
             {backlogColumn && (
               <Backlog
                 columnId={backlogColumn.id}
@@ -637,7 +641,7 @@ function EditableBoard() {
               onDeleteColumn={setDeletingColumn}
               {...cardActions}
             />
-          </div>
+          </HorizontalScrollArea>
 
           <DragOverlay>{activeCard && <CardPreview card={activeCard} />}</DragOverlay>
         </DndContext>

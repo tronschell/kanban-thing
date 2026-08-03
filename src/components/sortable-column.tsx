@@ -42,7 +42,7 @@ export function SortableColumn({
       aria-label={column.name}
       data-column
       className={cn(
-        'relative flex w-column shrink-0 flex-col rounded-panel border border-subtle bg-surface',
+        'relative flex min-w-0 w-column shrink-0 flex-col rounded-panel border border-subtle bg-surface',
         isDragging && 'z-10'
       )}
     >
@@ -91,7 +91,7 @@ export function SortableColumn({
 
       <button
         onClick={() => onAddCard(column.id)}
-        className="focus-ring m-2 mt-0 flex items-center gap-1.5 rounded-control px-2 py-1.5 text-xs text-subtle hover:bg-surface-hover hover:text-fg"
+        className="touch-target focus-ring m-2 mt-0 flex items-center gap-1.5 rounded-control px-2 py-1.5 text-xs text-subtle hover:bg-surface-hover hover:text-fg"
       >
         <Plus className="size-3.5" />
         Add card

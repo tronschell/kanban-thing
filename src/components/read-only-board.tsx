@@ -12,6 +12,7 @@ import { splitBacklog } from '@/lib/backlog'
 import { formatDueDate, isDueSoon } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 import type { Card, Column } from '@/types'
+import { HorizontalScrollArea } from '@/components/horizontal-scroll-area'
 
 interface SharedBoard {
   status: string
@@ -24,7 +25,7 @@ function ReadOnlyCard({ card }: { card: Card }) {
   return (
     <li
       data-card
-      className="relative rounded-card border border-subtle bg-surface-raised px-2.5 py-2"
+      className="relative min-w-0 rounded-card border border-subtle bg-surface-raised px-2.5 py-2"
     >
       {card.color && (
         <span
@@ -65,7 +66,7 @@ function ReadOnlyColumn({
     <section
       aria-label={name}
       data-column
-      className="flex w-column shrink-0 flex-col rounded-panel border border-subtle bg-surface"
+      className="flex min-w-0 w-column shrink-0 flex-col rounded-panel border border-subtle bg-surface"
     >
       <header data-column-head className="flex items-center gap-2 px-2 py-2">
         <h2
@@ -172,7 +173,10 @@ export default function ReadOnlyBoard({ viewToken }: { viewToken: string }) {
         {hoursLeft !== null && <BoardExpirationTimer hoursLeft={hoursLeft} />}
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-3 py-3 scrollbar-thin">
+      <HorizontalScrollArea
+        aria-label="Shared board columns"
+        viewportClassName="flex h-full min-h-0 gap-3 px-3 py-3"
+      >
         {backlog && (
           <ReadOnlyColumn name="Backlog" cards={cardsIn(backlog.id)} emptyLabel="Nothing queued" />
         )}
@@ -184,7 +188,7 @@ export default function ReadOnlyBoard({ viewToken }: { viewToken: string }) {
             emptyLabel="No cards"
           />
         ))}
-      </div>
+      </HorizontalScrollArea>
     </div>
   )
 }

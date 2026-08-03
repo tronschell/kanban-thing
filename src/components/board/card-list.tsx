@@ -21,7 +21,7 @@ export function CardList({
         ref={setNodeRef}
         data-card-list
         className={cn(
-          'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 pt-0 scrollbar-thin',
+          'flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-2 pt-0 scrollbar-thin',
           isOver && 'bg-surface-active'
         )}
       >

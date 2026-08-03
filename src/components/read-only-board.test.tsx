@@ -1,5 +1,5 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
 
 const { shared, rpcCalls } = vi.hoisted(() => {
   const column = (id: string, name: string) => ({
@@ -43,6 +43,8 @@ vi.mock('@/lib/supabase/client', () => ({
 import ReadOnlyBoard from './read-only-board'
 
 describe('ReadOnlyBoard', () => {
+  afterEach(cleanup)
+
   beforeEach(() => {
     rpcCalls.length = 0
   })
@@ -60,5 +62,13 @@ describe('ReadOnlyBoard', () => {
     await screen.findByText('card-1')
 
     expect(rpcCalls).toEqual([{ fn: 'board_read_shared', args: { view_token_param: 'token' } }])
+  })
+
+  it('exposes the board columns as a keyboard-focusable horizontal region', async () => {
+    render(<ReadOnlyBoard viewToken="token" />)
+    const region = await screen.findByRole('region', { name: 'Shared board columns' })
+
+    expect(region.getAttribute('tabindex')).toBe('0')
+    expect(screen.getByText(/scroll horizontally to see all columns/i)).toBeTruthy()
   })
 })

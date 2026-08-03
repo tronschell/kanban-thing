@@ -169,7 +169,7 @@ export default function Navbar({
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex h-12 items-center gap-2 border-b bg-surface px-3">
+      <header className="sticky top-0 z-40 flex min-h-12 flex-wrap items-center gap-2 border-b bg-surface px-3 py-2 sm:h-12 sm:flex-nowrap sm:py-0">
         <Link
           href="/"
           className="focus-ring shrink-0 rounded-control text-sm font-medium text-muted transition-colors duration-fast ease-out hover:text-fg"
@@ -184,7 +184,7 @@ export default function Navbar({
             </span>
             <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{boardName}</h1>
 
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex w-full basis-full shrink-0 flex-wrap items-center justify-end gap-1 sm:w-auto sm:basis-auto sm:flex-nowrap">
               {hoursLeft !== null && (
                 <span
                   className={

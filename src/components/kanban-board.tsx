@@ -40,7 +40,7 @@ export default function KanbanBoard({
 
       <button
         onClick={onAddColumn}
-        className="focus-ring flex h-9 w-column shrink-0 items-center gap-1.5 rounded-panel border border-dashed border-subtle px-3 text-xs text-subtle hover:border-strong hover:text-fg"
+        className="touch-target focus-ring flex h-9 w-column shrink-0 items-center gap-1.5 rounded-panel border border-dashed border-subtle px-3 text-xs text-subtle hover:border-strong hover:text-fg"
       >
         <Plus className="size-3.5" />
         Add column

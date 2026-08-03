@@ -78,7 +78,7 @@ export function CardPreview({ card }: { card: Card }) {
   return (
     <div
       data-card
-      className="relative scale-[1.02] rounded-card border border-subtle bg-surface-raised px-2.5 py-2 opacity-90 shadow-drag"
+      className="relative min-w-0 scale-[1.02] rounded-card border border-subtle bg-surface-raised px-2.5 py-2 opacity-90 shadow-drag"
     >
       <CardFace card={card} />
     </div>
@@ -148,7 +148,7 @@ export function SortableCard({
       onClick={() => onOpenCard(card)}
       data-card
       className={cn(
-        'group relative rounded-card border px-2.5 py-2 focus-ring',
+        'group relative min-w-0 rounded-card border px-2.5 py-2 focus-ring',
         isDragging
           ? 'border-dashed border-strong bg-surface'
           : 'cursor-grab border-subtle bg-surface-raised hover:border-strong'

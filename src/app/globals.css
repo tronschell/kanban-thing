@@ -373,6 +373,19 @@
   }
 }
 
+/* Preserve the compact board chrome for pointer users while giving small and
+   coarse-pointer screens a genuinely tappable control box. */
+@media (max-width: 639px), (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+  }
+
+  .touch-target-icon {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 /* Structural variants. Every rule below is keyed on one of the four theme
    attributes stamped on :root, so components never branch on the theme in JS. */
 

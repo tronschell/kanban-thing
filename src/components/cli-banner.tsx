@@ -51,7 +51,7 @@ export function CliBanner() {
   return (
     <aside
       aria-label="New: command line client"
-      className="fixed inset-x-4 top-20 z-50 rounded-panel border border-accent bg-surface-raised p-4 shadow-modal duration-base ease-out animate-in fade-in-0 slide-in-from-top-2 motion-reduce:animate-none sm:inset-x-auto sm:right-6 sm:w-[21rem]"
+      className="relative z-50 mx-4 mt-3 rounded-panel border border-accent bg-surface-raised p-4 shadow-modal duration-base ease-out animate-in fade-in-0 slide-in-from-top-2 motion-reduce:animate-none sm:fixed sm:inset-x-auto sm:right-6 sm:top-20 sm:mx-0 sm:mt-0 sm:w-[21rem]"
     >
       <div className="flex items-start gap-3">
         <span
