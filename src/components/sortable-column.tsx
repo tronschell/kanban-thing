@@ -19,6 +19,7 @@ import type { CardActions } from './sortable-card'
 interface SortableColumnProps extends CardActions {
   column: Column
   cards: Card[]
+  emptyLabel: string
   onAddCard: (columnId: string) => void
   onRenameColumn: (column: Column) => void
   onDeleteColumn: (column: Column) => void
@@ -27,6 +28,7 @@ interface SortableColumnProps extends CardActions {
 export function SortableColumn({
   column,
   cards,
+  emptyLabel,
   onAddCard,
   onRenameColumn,
   onDeleteColumn,
@@ -89,7 +91,7 @@ export function SortableColumn({
         </DropdownMenu>
       </header>
 
-      <CardList columnId={column.id} cards={cards} emptyLabel="No cards" {...actions} />
+      <CardList columnId={column.id} cards={cards} emptyLabel={emptyLabel} {...actions} />
 
       <button
         onClick={() => onAddCard(column.id)}

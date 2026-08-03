@@ -27,6 +27,7 @@ import {
   ViewSwitcher,
 } from '@/components'
 import BoardBrief from '@/components/board-brief'
+import CardFilters from '@/components/board/card-filters'
 import CardDetail from '@/components/card-detail'
 import CardEditor from '@/components/card-editor'
 import ColumnEditor from '@/components/column-editor'
@@ -55,6 +56,12 @@ import {
 } from '@/components/board/dnd'
 import { createClient } from '@/lib/supabase/client'
 import { BACKLOG_NAME, splitBacklog } from '@/lib/backlog'
+import {
+  DEFAULT_CARD_FILTERS,
+  filterCards,
+  hasCardFilters,
+  type CardFilters as CardFiltersState,
+} from '@/lib/card-filters'
 import { boardRoute } from '@/lib/board-route'
 import { rememberBoard } from '@/lib/board-library'
 import { DEFAULT_LIFESPAN_DAYS } from '@/lib/board-lifespan'
@@ -156,6 +163,7 @@ function EditableBoard() {
   const [boardNotFound, setBoardNotFound] = useState(false)
   const [newBoardName, setNewBoardName] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [cardFilters, setCardFilters] = useState<CardFiltersState>(DEFAULT_CARD_FILTERS)
 
   const [activeCardId, setActiveCardId] = useState<string | null>(null)
   const [detailCardId, setDetailCardId] = useState<string | null>(null)
@@ -192,6 +200,12 @@ function EditableBoard() {
     () => createBoardAnnouncements({ cards, columns: allColumns }),
     [allColumns, cards]
   )
+  const filteredCards = useMemo(() => filterCards(cards, cardFilters), [cards, cardFilters])
+  const cardColors = useMemo(
+    () => Array.from(new Set(cards.flatMap((card) => (card.color ? [card.color] : [])))),
+    [cards]
+  )
+  const hasActiveCardFilters = hasCardFilters(cardFilters)
 
   const nameOfColumn = (columnId: string) =>
     allColumns.find((column) => column.id === columnId)?.name ?? 'Unknown'
@@ -641,6 +655,17 @@ function EditableBoard() {
         <ViewSwitcher currentView={currentView} onViewChange={setCurrentView} boardId={boardId} />
       </div>
 
+      {!isLoading && (
+        <CardFilters
+          columns={allColumns}
+          colors={cardColors}
+          filters={cardFilters}
+          totalCount={cards.length}
+          visibleCount={filteredCards.length}
+          onChange={setCardFilters}
+        />
+      )}
+
       <BoardBrief boardId={boardId} />
 
       {errorMessage && (
@@ -673,13 +698,15 @@ function EditableBoard() {
             {backlogColumn && (
               <Backlog
                 columnId={backlogColumn.id}
-                cards={cardsIn(cards, backlogColumn.id)}
+                cards={cardsIn(filteredCards, backlogColumn.id)}
+                emptyLabel={hasActiveCardFilters ? 'No matching cards' : 'Nothing queued'}
                 {...cardActions}
               />
             )}
             <KanbanBoard
               columns={columns}
-              cards={cards}
+              cards={filteredCards}
+              emptyLabel={hasActiveCardFilters ? 'No matching cards' : 'No cards'}
               onAddColumn={() => setColumnEditor({})}
               onRenameColumn={(column) => setColumnEditor({ column })}
               onDeleteColumn={setDeletingColumn}
@@ -694,7 +721,7 @@ function EditableBoard() {
       {!isLoading && currentView === 'calendar' && (
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
           <CalendarView
-            cards={cards}
+            cards={filteredCards}
             columns={allColumns}
             onOpenCard={(card) => setCardEditor({ columnId: card.column_id, card })}
             onSetDueDate={(card, due_date) => updateCardFields(card.id, { due_date })}
@@ -704,13 +731,13 @@ function EditableBoard() {
 
       {!isLoading && currentView === 'timeline' && (
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
-          <TimelineView boardId={boardId} />
+          <TimelineView boardId={boardId} filters={cardFilters} />
         </div>
       )}
 
       {!isLoading && currentView === 'pulse' && (
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
-          <PulseView boardId={boardId} />
+          <PulseView boardId={boardId} filters={cardFilters} />
         </div>
       )}
 

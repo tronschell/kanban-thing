@@ -6,6 +6,7 @@ import { ArrowRight, Check, Copy } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
 import { readBoard } from '@/lib/board-writes'
+import { DEFAULT_CARD_FILTERS, filterCards, type CardFilters } from '@/lib/card-filters'
 import { dueDateToDay, formatDueDate } from '@/lib/date-utils'
 import { Badge, Button, Skeleton } from '@/components/ui'
 
@@ -30,6 +31,8 @@ interface PulseColumn {
 interface PulseCard {
   id: string
   title: string
+  description: string | null
+  color: string | null
   due_date: string | null
   created_at: string
   column_id: string
@@ -61,6 +64,11 @@ interface LandedRow {
   id: string
   title: string
   timestamp: string
+}
+
+interface PulseViewProps {
+  boardId: string
+  filters?: CardFilters
 }
 
 const lastColumnChange = (card: PulseCard) =>
@@ -120,7 +128,10 @@ function PulseSkeleton() {
   )
 }
 
-export default function PulseView({ boardId }: { boardId: string }) {
+export default function PulseView({
+  boardId,
+  filters = DEFAULT_CARD_FILTERS,
+}: PulseViewProps) {
   const [columns, setColumns] = useState<PulseColumn[]>([])
   const [cards, setCards] = useState<PulseCard[]>([])
   const [loading, setLoading] = useState(true)
@@ -162,6 +173,8 @@ export default function PulseView({ boardId }: { boardId: string }) {
         board.cards.map(card => ({
           id: card.id,
           title: card.title,
+          description: card.description,
+          color: card.color,
           due_date: card.due_date,
           created_at: card.created_at,
           column_id: card.column_id,
@@ -184,6 +197,7 @@ export default function PulseView({ boardId }: { boardId: string }) {
   }, [copied])
 
   const pulse = useMemo(() => {
+    const visibleCards = filterCards(cards, filters, new Date(now))
     const windowStart = now - WINDOW_DAYS * 86400000
     const backlogIds = new Set(
       columns.filter(column => column.name === BACKLOG_NAME).map(column => column.id)
@@ -194,7 +208,7 @@ export default function PulseView({ boardId }: { boardId: string }) {
     const nameOf = new Map(columns.map(column => [column.id, column.name]))
     const today = format(now, 'yyyy-MM-dd')
 
-    const stuck: StuckRow[] = cards
+    const stuck: StuckRow[] = visibleCards
       .filter(card => !backlogIds.has(card.column_id) && card.column_id !== finalColumn?.id)
       .map(card => ({
         id: card.id,
@@ -205,12 +219,12 @@ export default function PulseView({ boardId }: { boardId: string }) {
       .filter(row => row.days >= STUCK_DAYS)
       .sort((a, b) => b.days - a.days)
 
-    const late: LateRow[] = cards
+    const late: LateRow[] = visibleCards
       .filter(card => card.due_date && dueDateToDay(card.due_date) < today)
       .map(card => ({ id: card.id, title: card.title, due_date: card.due_date! }))
       .sort((a, b) => a.due_date.localeCompare(b.due_date))
 
-    const recentMoves = cards.flatMap(card =>
+    const recentMoves = visibleCards.flatMap(card =>
       card.card_history
         .filter(move => new Date(move.timestamp).getTime() >= windowStart)
         .map(move => ({ card, move }))
@@ -227,7 +241,7 @@ export default function PulseView({ boardId }: { boardId: string }) {
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
 
     const landed: LandedRow[] = finalColumn
-      ? cards
+      ? visibleCards
           .filter(
             card =>
               card.column_id === finalColumn.id &&
@@ -242,10 +256,10 @@ export default function PulseView({ boardId }: { boardId: string }) {
           .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
       : []
 
-    const summary = `${plural(cards.length, 'card')}. ${stuck.length} stuck, ${late.length} late, ${moved.length} moved this week.`
+    const summary = `${plural(visibleCards.length, 'card')}. ${stuck.length} stuck, ${late.length} late, ${moved.length} moved this week.`
 
     return { summary, stuck, late, moved, landed }
-  }, [cards, columns, now])
+  }, [cards, columns, filters, now])
 
   const copySummary = async () => {
     const digest =

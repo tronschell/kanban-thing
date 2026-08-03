@@ -6,6 +6,7 @@ import { ArrowRight, GitCommit } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
 import { readBoard } from '@/lib/board-writes'
+import { DEFAULT_CARD_FILTERS, filterCards, type CardFilters } from '@/lib/card-filters'
 import { formatDueDate, isDueSoon } from '@/lib/date-utils'
 import { Badge, Button, Modal, Select, Skeleton } from '@/components/ui'
 import type { CardHistory } from '@/types'
@@ -16,6 +17,7 @@ interface TimelineCard {
   description: string | null
   color: string | null
   due_date: string | null
+  column_id: string
   created_at: string
   column_name: string
   card_history: CardHistory[]
@@ -30,6 +32,11 @@ interface Entry {
 
 type Range = '7' | '30' | '90' | 'all'
 type SortBy = 'updated' | 'created'
+
+interface TimelineViewProps {
+  boardId: string
+  filters?: CardFilters
+}
 
 const VISIBLE_ENTRIES = 4
 const TICK_MS = 60000
@@ -138,7 +145,10 @@ function TimelineSkeleton() {
   )
 }
 
-export default function TimelineView({ boardId }: { boardId: string }) {
+export default function TimelineView({
+  boardId,
+  filters = DEFAULT_CARD_FILTERS,
+}: TimelineViewProps) {
   const [cards, setCards] = useState<TimelineCard[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -184,6 +194,7 @@ export default function TimelineView({ boardId }: { boardId: string }) {
           description: card.description,
           color: card.color,
           due_date: card.due_date,
+          column_id: card.column_id,
           created_at: card.created_at,
           column_name: columnNames.get(card.column_id) ?? '',
           card_history: historyByCard.get(card.id) ?? [],
@@ -203,8 +214,10 @@ export default function TimelineView({ boardId }: { boardId: string }) {
       sortBy === 'created' ? new Date(card.created_at).getTime() : lastActivityOf(card)
     const cutoff = range === 'all' ? 0 : subDays(now, Number(range)).getTime()
 
-    return cards.filter(card => activity(card) >= cutoff).sort((a, b) => activity(b) - activity(a))
-  }, [cards, range, sortBy, now])
+    return filterCards(cards, filters)
+      .filter(card => activity(card) >= cutoff)
+      .sort((a, b) => activity(b) - activity(a))
+  }, [cards, filters, range, sortBy, now])
 
   if (loading) return <TimelineSkeleton />
 

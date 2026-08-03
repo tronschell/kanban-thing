@@ -9,10 +9,11 @@ import type { CardActions } from './sortable-card'
 interface BacklogProps extends CardActions {
   columnId: string
   cards: Card[]
+  emptyLabel: string
   onAddCard: (columnId: string) => void
 }
 
-export default function Backlog({ columnId, cards, onAddCard, ...actions }: BacklogProps) {
+export default function Backlog({ columnId, cards, emptyLabel, onAddCard, ...actions }: BacklogProps) {
   const { setNodeRef } = useDroppable({ id: columnId })
 
   return (
@@ -35,7 +36,7 @@ export default function Backlog({ columnId, cards, onAddCard, ...actions }: Back
         </span>
       </header>
 
-      <CardList columnId={columnId} cards={cards} emptyLabel="Nothing queued" {...actions} />
+      <CardList columnId={columnId} cards={cards} emptyLabel={emptyLabel} {...actions} />
 
       <button
         onClick={() => onAddCard(columnId)}

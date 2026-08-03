@@ -10,6 +10,7 @@ import type { CardActions } from './sortable-card'
 interface KanbanBoardProps extends CardActions {
   columns: Column[]
   cards: Card[]
+  emptyLabel: string
   onAddCard: (columnId: string) => void
   onAddColumn: () => void
   onRenameColumn: (column: Column) => void
@@ -19,6 +20,7 @@ interface KanbanBoardProps extends CardActions {
 export default function KanbanBoard({
   columns,
   cards,
+  emptyLabel,
   onAddColumn,
   ...columnProps
 }: KanbanBoardProps) {
@@ -33,6 +35,7 @@ export default function KanbanBoard({
             key={column.id}
             column={column}
             cards={cardsIn(cards, column.id)}
+            emptyLabel={emptyLabel}
             {...columnProps}
           />
         ))}
