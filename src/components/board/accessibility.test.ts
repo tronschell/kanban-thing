@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { Active, Over } from '@dnd-kit/core'
 import type { Card } from '@/types'
 import {
+  cardScreenReaderInstructions,
   createBoardAnnouncements,
   deletedCardAnnouncement,
   focusTargetForDeletedCard,
@@ -25,6 +26,11 @@ const over = (id: string) => ({ id }) as unknown as Over
 
 describe('board drag accessibility', () => {
   const announcements = createBoardAnnouncements({ cards, columns })
+
+  it('keeps card-only demo instructions truthful', () => {
+    expect(cardScreenReaderInstructions.draggable).toContain('card')
+    expect(cardScreenReaderInstructions.draggable).not.toContain('column')
+  })
 
   it('uses card titles and column names instead of identifiers', () => {
     const card = active('card-uuid-1', 'card')

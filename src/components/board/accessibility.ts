@@ -97,6 +97,11 @@ export const boardScreenReaderInstructions = {
     'To pick up a card or column, press the space bar. While dragging a card, use the arrow keys to move it. While dragging a column, use ArrowLeft and ArrowRight to reorder it. Press space again to drop, or press escape to cancel.',
 }
 
+export const cardScreenReaderInstructions = {
+  draggable:
+    'To pick up a card, press the space bar. While dragging it, use the arrow keys to move it. Press space again to drop, or press escape to cancel.',
+}
+
 export interface DeletionFocusTarget {
   cardId: string | null
   columnId: string

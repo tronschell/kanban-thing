@@ -103,35 +103,45 @@ describe('column keyboard movement', () => {
     document.body.innerHTML = ''
   })
 
-  it('resolves ArrowRight to the next sortable column and prevents page scrolling', () => {
-    const first = document.createElement('section')
-    first.dataset.columnId = 'todo'
-    first.dataset.columnSortable = ''
-    const second = document.createElement('section')
-    second.dataset.columnId = 'doing'
-    second.dataset.columnSortable = ''
-    const third = document.createElement('section')
-    third.dataset.columnId = 'done'
-    third.dataset.columnSortable = ''
-    document.body.append(first, second, third)
+  it('tracks repeated ArrowRight movement and reverses with ArrowLeft', () => {
+    const columns = ['todo', 'doing', 'done'].map((id) => {
+      const column = document.createElement('section')
+      column.dataset.columnId = id
+      column.dataset.columnSortable = ''
+      return column
+    })
+    document.body.append(...columns)
 
-    Object.defineProperty(second, 'getBoundingClientRect', {
-      value: () => ({ left: 220, top: 10, width: 180, height: 400 }),
+    columns.forEach((column, index) => {
+      Object.defineProperty(column, 'getBoundingClientRect', {
+        value: () => ({ left: index * 220, top: 10, width: 180, height: 400 }),
+      })
     })
 
-    const event = new KeyboardEvent('keydown', { code: 'ArrowRight', cancelable: true })
     const active = {
       id: 'todo',
       data: { current: { type: 'column' } },
     } as unknown as Active
-    const result = boardKeyboardCoordinates(event, {
-      active: 'todo',
-      currentCoordinates: { x: 0, y: 10 },
-      context: { active } as never,
-    })
+    const coordinates = (event: KeyboardEvent, currentCoordinates: { x: number; y: number }) =>
+      boardKeyboardCoordinates(event, {
+        active: 'todo',
+        currentCoordinates,
+        context: { active } as never,
+      })
 
-    expect(result).toEqual({ x: 220, y: 10 })
-    expect(event.defaultPrevented).toBe(true)
+    const firstRight = new KeyboardEvent('keydown', { code: 'ArrowRight', cancelable: true })
+    const secondRight = new KeyboardEvent('keydown', { code: 'ArrowRight', cancelable: true })
+    const reverseLeft = new KeyboardEvent('keydown', { code: 'ArrowLeft', cancelable: true })
+    const firstPosition = coordinates(firstRight, { x: 0, y: 10 })
+    const secondPosition = coordinates(secondRight, firstPosition ?? { x: 0, y: 10 })
+    const reversePosition = coordinates(reverseLeft, secondPosition ?? { x: 0, y: 10 })
+
+    expect(firstPosition).toEqual({ x: 220, y: 10 })
+    expect(secondPosition).toEqual({ x: 440, y: 10 })
+    expect(reversePosition).toEqual({ x: 220, y: 10 })
+    expect(firstRight.defaultPrevented).toBe(true)
+    expect(secondRight.defaultPrevented).toBe(true)
+    expect(reverseLeft.defaultPrevented).toBe(true)
   })
 
   it('does not move beyond the first or last sortable column', () => {

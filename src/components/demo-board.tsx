@@ -31,7 +31,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Badge } from '@/components/ui/badge'
 import {
-  boardScreenReaderInstructions,
+  cardScreenReaderInstructions,
   createBoardAnnouncements,
 } from '@/components/board/accessibility'
 import { LABEL_COLORS } from '@/lib/colors'
@@ -365,7 +365,7 @@ export function DemoBoard() {
             onDragCancel={settle}
             accessibility={{
               announcements: dndAnnouncements,
-              screenReaderInstructions: boardScreenReaderInstructions,
+              screenReaderInstructions: cardScreenReaderInstructions,
             }}
           >
             <div className="flex gap-3 lg:justify-center">

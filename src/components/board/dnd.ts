@@ -27,6 +27,20 @@ export const columnKeyboardTargetId = (
   return columnIds[targetIndex] ?? null
 }
 
+const currentColumnId = (columns: readonly HTMLElement[], currentX: number) => {
+  let closest: { id: string; distance: number } | null = null
+
+  for (const column of columns) {
+    const id = column.dataset.columnId
+    if (!id) continue
+
+    const distance = Math.abs(column.getBoundingClientRect().left - currentX)
+    if (!closest || distance < closest.distance) closest = { id, distance }
+  }
+
+  return closest?.id ?? null
+}
+
 export const boardKeyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
   const { active: activeDrag } = args.context
   const { currentCoordinates } = args
@@ -42,7 +56,8 @@ export const boardKeyboardCoordinates: KeyboardCoordinateGetter = (event, args) 
   const columnIds = columns
     .map((column) => column.dataset.columnId)
     .filter((id): id is string => Boolean(id))
-  const targetId = columnKeyboardTargetId(columnIds, String(args.active), event.code)
+  const activeId = currentColumnId(columns, currentCoordinates.x) ?? String(args.active)
+  const targetId = columnKeyboardTargetId(columnIds, activeId, event.code)
   const target = targetId
     ? columns.find((column) => column.dataset.columnId === targetId)
     : undefined
