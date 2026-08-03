@@ -4,16 +4,67 @@ import {
   rectIntersection,
   type Active,
   type CollisionDetection,
+  type KeyboardCoordinateGetter,
   type Over,
 } from '@dnd-kit/core'
 import { getEventCoordinates } from '@dnd-kit/utilities'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import type { Card } from '@/types'
 
 const LIST_PREFIX = 'list:'
 
+export const columnKeyboardTargetId = (
+  columnIds: readonly string[],
+  activeId: string,
+  code: string
+) => {
+  if (code !== 'ArrowLeft' && code !== 'ArrowRight') return null
+
+  const activeIndex = columnIds.indexOf(activeId)
+  if (activeIndex === -1) return null
+
+  const targetIndex = activeIndex + (code === 'ArrowRight' ? 1 : -1)
+  return columnIds[targetIndex] ?? null
+}
+
+export const boardKeyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
+  const { active: activeDrag } = args.context
+  const { currentCoordinates } = args
+  if (activeDrag?.data.current?.type !== 'column') return sortableKeyboardCoordinates(event, args)
+  if (event.code !== 'ArrowLeft' && event.code !== 'ArrowRight') return undefined
+
+  event.preventDefault()
+  if (typeof document === 'undefined') return currentCoordinates
+
+  const columns = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-column-sortable]')
+  )
+  const columnIds = columns
+    .map((column) => column.dataset.columnId)
+    .filter((id): id is string => Boolean(id))
+  const targetId = columnKeyboardTargetId(columnIds, String(args.active), event.code)
+  const target = targetId
+    ? columns.find((column) => column.dataset.columnId === targetId)
+    : undefined
+
+  if (!target) return currentCoordinates
+
+  const rect = target.getBoundingClientRect()
+  return { x: rect.left, y: rect.top }
+}
+
 export const listDroppableId = (columnId: string) => `${LIST_PREFIX}${columnId}`
 
 export const boardCollisionDetection: CollisionDetection = (args) => {
+  if (args.active.data.current?.type === 'column') {
+    return closestCorners({
+      ...args,
+      droppableContainers: args.droppableContainers.filter(
+        (container) => container.data.current?.type === 'column'
+      ),
+    })
+  }
+
   const underPointer = pointerWithin(args)
   if (underPointer.length > 0) return underPointer
 

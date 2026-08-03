@@ -1,6 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -24,6 +30,10 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Badge } from '@/components/ui/badge'
+import {
+  boardScreenReaderInstructions,
+  createBoardAnnouncements,
+} from '@/components/board/accessibility'
 import { LABEL_COLORS } from '@/lib/colors'
 import { cn } from '@/lib/utils'
 
@@ -142,6 +152,7 @@ function CardFace({ card }: { card: DemoCard }) {
 function DemoSortableCard({ card, animate }: { card: DemoCard; animate: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
+    data: { type: 'card' },
     attributes: { roleDescription: 'Example card' },
   })
 
@@ -229,6 +240,19 @@ export function DemoBoard() {
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const dndAnnouncements = useMemo(
+    () =>
+      createBoardAnnouncements({
+        cards: cards.map(({ id, title, columnId }) => ({
+          id,
+          title,
+          column_id: columnId,
+        })),
+        columns: COLUMNS,
+      }),
+    [cards]
   )
 
   useEffect(() => {
@@ -339,6 +363,10 @@ export function DemoBoard() {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
             onDragCancel={settle}
+            accessibility={{
+              announcements: dndAnnouncements,
+              screenReaderInstructions: boardScreenReaderInstructions,
+            }}
           >
             <div className="flex gap-3 lg:justify-center">
               {COLUMNS.map((column) => (

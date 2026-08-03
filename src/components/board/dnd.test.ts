@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { Active, Over } from '@dnd-kit/core'
-import { dropIndex } from './dnd'
+import { boardKeyboardCoordinates, columnKeyboardTargetId, dropIndex } from './dnd'
 import type { Card } from '@/types'
 
 const card = (id: string, columnId: string, position: number): Card => ({
@@ -95,5 +95,48 @@ describe('dropIndex', () => {
 
   it('returns the over index when a card is dropped on itself', () => {
     expect(dropIndex(cards, 'b', grabbed('b1', 139, 0, 40), b1, activatorEvent)).toBe(0)
+  })
+})
+
+describe('column keyboard movement', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('resolves ArrowRight to the next sortable column and prevents page scrolling', () => {
+    const first = document.createElement('section')
+    first.dataset.columnId = 'todo'
+    first.dataset.columnSortable = ''
+    const second = document.createElement('section')
+    second.dataset.columnId = 'doing'
+    second.dataset.columnSortable = ''
+    const third = document.createElement('section')
+    third.dataset.columnId = 'done'
+    third.dataset.columnSortable = ''
+    document.body.append(first, second, third)
+
+    Object.defineProperty(second, 'getBoundingClientRect', {
+      value: () => ({ left: 220, top: 10, width: 180, height: 400 }),
+    })
+
+    const event = new KeyboardEvent('keydown', { code: 'ArrowRight', cancelable: true })
+    const active = {
+      id: 'todo',
+      data: { current: { type: 'column' } },
+    } as unknown as Active
+    const result = boardKeyboardCoordinates(event, {
+      active: 'todo',
+      currentCoordinates: { x: 0, y: 10 },
+      context: { active } as never,
+    })
+
+    expect(result).toEqual({ x: 220, y: 10 })
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('does not move beyond the first or last sortable column', () => {
+    expect(columnKeyboardTargetId(['todo', 'doing', 'done'], 'todo', 'ArrowLeft')).toBe(null)
+    expect(columnKeyboardTargetId(['todo', 'doing', 'done'], 'done', 'ArrowRight')).toBe(null)
+    expect(columnKeyboardTargetId(['todo', 'doing', 'done'], 'doing', 'ArrowRight')).toBe('done')
   })
 })

@@ -147,6 +147,7 @@ export function SortableCard({
       {...listeners}
       onClick={() => onOpenCard(card)}
       data-card
+      data-card-id={card.id}
       className={cn(
         'group relative min-w-0 rounded-card border px-2.5 py-2 focus-ring',
         isDragging

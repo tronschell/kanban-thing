@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { isHex, normalizeHex } from './contrast'
+import { AA_LARGE, contrastRatio, isHex, normalizeHex } from './contrast'
 import {
   DEFAULT_PRESET_ID,
   PRESETS,
@@ -45,6 +45,10 @@ describe('theme variables', () => {
       canvas: '#1a1a1a',
       accent: '#3366ff',
     })
+  })
+
+  it.each(PRESETS)('$name keeps secondary colour at the large-text threshold', (option) => {
+    expect(contrastRatio(option.base.support, option.base.canvas)).toBeGreaterThanOrEqual(AA_LARGE)
   })
 })
 

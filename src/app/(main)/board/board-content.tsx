@@ -15,7 +15,7 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { arrayMove } from '@dnd-kit/sortable'
 import { Plus, X } from 'lucide-react'
 import {
   Backlog,
@@ -36,6 +36,15 @@ import { PasswordProtection } from '@/components/password-protection'
 import ReadOnlyBoard from '@/components/read-only-board'
 import { Button, IconButton, Input, Modal, ModalFooter, Skeleton } from '@/components/ui'
 import {
+  boardScreenReaderInstructions,
+  createBoardAnnouncements,
+  deletedCardAnnouncement,
+  focusTargetForDeletedCard,
+  restoreFocusAfterDeletion,
+  type DeletionFocusTarget,
+} from '@/components/board/accessibility'
+import {
+  boardKeyboardCoordinates,
   boardCollisionDetection,
   cardsIn,
   columnOf,
@@ -152,14 +161,17 @@ function EditableBoard() {
   const [deletingCard, setDeletingCard] = useState<Card | null>(null)
   const [columnEditor, setColumnEditor] = useState<{ column?: Column } | null>(null)
   const [deletingColumn, setDeletingColumn] = useState<Column | null>(null)
+  const [liveMessage, setLiveMessage] = useState('')
+  const [dndContextKey, setDndContextKey] = useState(0)
 
   const dragOrigin = useRef<{ cards: Card[]; columnId: string } | null>(null)
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
+  const pendingFocusAfterDelete = useRef<DeletionFocusTarget | null>(null)
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: boardKeyboardCoordinates })
   )
 
   const allColumns = useMemo(
@@ -172,6 +184,11 @@ function EditableBoard() {
   const moveTargets = useMemo(
     () => allColumns.map((column) => ({ id: column.id, name: column.name })),
     [allColumns]
+  )
+
+  const dndAnnouncements = useMemo(
+    () => createBoardAnnouncements({ cards, columns: allColumns }),
+    [allColumns, cards]
   )
 
   const nameOfColumn = (columnId: string) =>
@@ -243,6 +260,14 @@ function EditableBoard() {
       cancelled = true
     }
   }, [boardId, supabase, isAuthenticated, lock])
+
+  useEffect(() => {
+    const target = pendingFocusAfterDelete.current
+    if (!target) return
+    if (restoreFocusAfterDeletion(target)) {
+      pendingFocusAfterDelete.current = null
+    }
+  }, [cards])
 
   const enqueueWrite = (work: () => Promise<void>) => {
     const next = writeQueue.current.then(work).catch((error) => {
@@ -429,6 +454,8 @@ function EditableBoard() {
     if (!boardId) return
 
     const previous = cards
+    pendingFocusAfterDelete.current = focusTargetForDeletedCard(previous, card)
+    setDndContextKey((key) => key + 1)
     const remaining = previous.filter((item) => item.id !== card.id)
     const renumbered = numbered(cardsIn(remaining, card.column_id))
     const next = [...remaining.filter((item) => item.column_id !== card.column_id), ...renumbered]
@@ -438,8 +465,12 @@ function EditableBoard() {
       const result = await saveCards(supabase, boardId, renumbered.map(cardRow), [card.id])
       if (result !== 'ok') {
         setCards(previous)
+        setLiveMessage(`Could not delete card ${card.title}.`)
         handleWriteResult(result, 'Could not delete that card.')
+        return
       }
+
+      setLiveMessage(deletedCardAnnouncement(card.title))
     })
   }
 
@@ -584,6 +615,9 @@ function EditableBoard() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-canvas">
+      <p data-board-status role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {liveMessage}
+      </p>
       <Navbar
         boardId={boardId}
         boardName={boardName}
@@ -614,7 +648,12 @@ function EditableBoard() {
 
       {!isLoading && currentView === 'kanban' && (
         <DndContext
+          key={dndContextKey}
           sensors={sensors}
+          accessibility={{
+            announcements: dndAnnouncements,
+            screenReaderInstructions: boardScreenReaderInstructions,
+          }}
           collisionDetection={boardCollisionDetection}
           measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
           onDragStart={handleDragStart}

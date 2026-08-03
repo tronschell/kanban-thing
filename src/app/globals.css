@@ -127,9 +127,9 @@
     --accent-fg: #ffffff;
     --accent-soft: rgb(51 80 110 / 0.12);
 
-    --support: #e7cb93;
-    --support-fg: #39301a;
-    --support-soft: rgb(231 203 147 / 0.4);
+    --support: #5f451e;
+    --support-fg: #ffffff;
+    --support-soft: rgb(95 69 30 / 0.14);
 
     --danger: #a32219;
     --danger-hover: #841b14;
@@ -177,9 +177,9 @@
     --accent-fg: #ffffff;
     --accent-soft: rgb(176 32 0 / 0.1);
 
-    --support: #ff5a2b;
-    --support-fg: #0a0a0a;
-    --support-soft: rgb(255 90 43 / 0.16);
+    --support: #8c1a00;
+    --support-fg: #ffffff;
+    --support-soft: rgb(140 26 0 / 0.12);
 
     --danger: #b02000;
     --danger-hover: #8c1a00;

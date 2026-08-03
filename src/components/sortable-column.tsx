@@ -41,6 +41,8 @@ export function SortableColumn({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       aria-label={column.name}
       data-column
+      data-column-id={column.id}
+      data-column-sortable
       className={cn(
         'relative flex min-w-0 w-column shrink-0 flex-col rounded-panel border border-subtle bg-surface',
         isDragging && 'z-10'
@@ -91,6 +93,7 @@ export function SortableColumn({
 
       <button
         onClick={() => onAddCard(column.id)}
+        data-add-card-for={column.id}
         className="touch-target focus-ring m-2 mt-0 flex items-center gap-1.5 rounded-control px-2 py-1.5 text-xs text-subtle hover:bg-surface-hover hover:text-fg"
       >
         <Plus className="size-3.5" />
