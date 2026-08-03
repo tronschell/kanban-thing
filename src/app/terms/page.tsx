@@ -15,11 +15,7 @@ const structuredData = {
   "@type": "WebPage",
   name: "KanbanThing Terms of Service",
   url: `${baseUrl}/terms`,
-  publisher: {
-    "@type": "Organization",
-    name: "KanbanThing",
-    url: baseUrl,
-  },
+  publisher: { "@id": `${baseUrl}/#organization` },
 }
 
 export default function TermsPage() {

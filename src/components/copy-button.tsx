@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Check, Copy } from "lucide-react"
-import { IconButton } from "@/components/ui"
+import { IconButton } from "@/components/ui/icon-button"
 
 export function CopyButton({
   value,

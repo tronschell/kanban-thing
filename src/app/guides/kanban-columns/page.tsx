@@ -17,6 +17,7 @@ export default function KanbanColumnsGuide() {
       title="How to choose the columns on a kanban board"
       breadcrumb="Kanban columns"
       path="/guides/kanban-columns"
+      published="2026-08-02"
       lead="The columns are the only design decision a board really asks of you. Everything else is cards. This is how to pick them, when to split one in two, and how to tell from the board itself that you got them wrong."
     >
       <h2>What a column actually represents</h2>

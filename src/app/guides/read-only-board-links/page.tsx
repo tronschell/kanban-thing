@@ -4,7 +4,7 @@ import { generateMetadata } from "@/lib/metadata"
 import { GuidePage } from "../guide-page"
 
 export const metadata: Metadata = generateMetadata({
-  title: "Share a Kanban Board: Edit Links vs Read-Only Links",
+  title: "Share a Kanban Board: Edit vs Read-Only Links",
   description:
     "The difference between an editable board link and a read-only share link, what each one lets the holder do, and how to take access back from someone.",
   path: "/guides/read-only-board-links",
@@ -17,6 +17,7 @@ export default function ReadOnlyBoardLinksGuide() {
       title="Sharing a board: edit links, read-only links and passwords"
       breadcrumb="Read-only board links"
       path="/guides/read-only-board-links"
+      published="2026-08-02"
       lead="There are no accounts here, so there are no roles either. Access is a property of the link somebody is holding. There are exactly two kinds, they behave very differently, and it is worth knowing which one you just pasted into a group chat."
     >
       <h2>The two kinds of board link</h2>

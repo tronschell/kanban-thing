@@ -3,13 +3,13 @@ import { baseUrl, generateMetadata } from "@/lib/metadata"
 import { FAQS } from "./faqs"
 import HomeContent from "./home-content"
 
-const title = "KanbanThing - Simple Free Kanban Board Tool"
+const title = "Free Online Kanban Board — No Sign Up, No Login"
 
 export const metadata: Metadata = {
   ...generateMetadata({
     title,
     description:
-      "A simple, no-signup, and free Kanban board application designed to help individuals and teams organize their work effectively. KanbanThing can be used for project management, team collaboration, or as a simple task list.",
+      "Create a shared kanban board online — no login, no sign up, no registration, no install. Name a board, send the link, drag the cards. Free, and it stays free.",
     path: "/",
   }),
   title: { absolute: title },
@@ -25,6 +25,8 @@ const structuredData = {
       "@id": organizationId,
       name: "KanbanThing",
       url: baseUrl,
+      description:
+        "KanbanThing makes a free online kanban board you share by link, with no account, no registration and nothing to install.",
       founder: {
         "@type": "Person",
         name: "Tron Schell",
@@ -45,9 +47,10 @@ const structuredData = {
     },
     {
       "@type": ["SoftwareApplication", "WebApplication"],
+      "@id": `${baseUrl}/#app`,
       name: "KanbanThing",
       url: baseUrl,
-      applicationCategory: "ProductivityApplication",
+      applicationCategory: "BusinessApplication",
       operatingSystem: "Any",
       publisher: { "@id": organizationId },
       offers: {
@@ -56,9 +59,9 @@ const structuredData = {
         priceCurrency: "USD",
       },
       description:
-        "A free, no-signup Kanban board application/tool built to make you extraordinarily productive. The easiest way to organize your work.",
+        "A free online kanban board you share by link. No login, no registration and no install: name a board, set a password, send the link, and everyone drags the same cards.",
       featureList: [
-        "No sign-up required",
+        "No login, registration or sign-up required",
         "Always free",
         "Boards last up to 60 days",
         "Shareable board links",

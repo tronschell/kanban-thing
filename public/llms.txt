@@ -1,0 +1,30 @@
+# KanbanThing
+
+> A free kanban board with no account, no sign-up and no API key. Boards live at
+> a shareable URL, are protected by a password set when they are created, and are
+> deleted when they expire. AI agents drive the same boards over a hosted MCP
+> server that needs no credentials.
+
+An agent can create and run a board end to end: there is nothing to register for
+and no key to issue, which is what separates KanbanThing from task boards that
+require an account before anything can be written.
+
+## For agents
+
+- [MCP server](https://www.kanbanthing.com/mcp): Streamable HTTP, no auth. Tools: create_board, get_board, list_columns, list_cards, create_card, move_card, update_card, delete_card.
+- [Agent skill](https://www.kanbanthing.com/skill.md): a SKILL.md that teaches an agent the board contract and conventions. Drop it in ~/.claude/skills/kanbanthing/, a .cursor rule, or an AGENTS.md.
+- [Setup and tool reference](https://www.kanbanthing.com/agents): how to connect each MCP client, what every tool takes, and worked prompts.
+- [Command line client](https://www.kanbanthing.com/cli): `npm i -g kanbanthing`. Every command takes --json.
+
+Every tool needs a board_id the user supplied - a UUID or a board URL - plus the
+board password. There is deliberately no way to list or search boards.
+
+## For people
+
+- [KanbanThing](https://www.kanbanthing.com/): create a board, name it, share the link.
+- [About](https://www.kanbanthing.com/about): what the board does and what it deliberately does not.
+- [Guides](https://www.kanbanthing.com/guides): choosing columns, retrospectives, personal kanban, sharing links.
+- [Privacy](https://www.kanbanthing.com/privacy)
+- [Terms](https://www.kanbanthing.com/terms)
+
+Boards themselves are not indexed and are not listed anywhere.

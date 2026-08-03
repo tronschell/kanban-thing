@@ -9,20 +9,21 @@ const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",
   weight: "100 900",
+  preload: false,
 });
 const geistMono = localFont({
   src: "./fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
   weight: "100 900",
+  preload: false,
 });
 
 export const metadata: Metadata = {
-  keywords: ['Kanban', 'Kanban Board', 'Free Kanban Board', 'Programming', 'Project Management', 'Task Management', 'Scrum', 'Agile', 'Workflow', 'Productivity'],
   title: {
     template: '%s | KanbanThing',
-    default: 'KanbanThing - Simple Free Kanban Board Tool'
+    default: 'Free Online Kanban Board — No Sign Up, No Login'
   },
-  description: 'A simple, no-signup, and free Kanban board application designed to help individuals and teams organize their work effectively. KanbanThing can be used for project management, team collaboration, or as a simple task list.',
+  description: 'Create a shared kanban board online — no login, no registration, no email, no install. Name a board, send the link, drag the cards. Free, and it stays free.',
   metadataBase: new URL(baseUrl),
   openGraph: {
     type: 'website',
@@ -45,6 +46,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        <link rel="preconnect" href="https://pagead2.googlesyndication.com" />
+        <link rel="preconnect" href="https://googleads.g.doubleclick.net" />
+        <link rel="preconnect" href="https://www.googletagmanager.com" />
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7416624351466531"
           crossOrigin="anonymous"></script>
         <meta name='admaven-placement' content='Bqja8rds7'></meta>

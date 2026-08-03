@@ -1,10 +1,11 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { baseUrl, generateMetadata } from "@/lib/metadata"
+import { ArrowRight } from "lucide-react"
+import { generateMetadata } from "@/lib/metadata"
 import { Button } from "@/components/ui/button"
 
 export const metadata: Metadata = generateMetadata({
-  title: "Kanban Guides",
+  title: "How to Run a Kanban Board: Practical Guides",
   description:
     "Short, practical guides to running a kanban board: choosing columns, running a retrospective, working solo, and sharing a board without giving away edit access.",
   path: "/guides",
@@ -41,29 +42,11 @@ const guides = [
   },
 ]
 
-const structuredData = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
-    {
-      "@type": "ListItem",
-      position: 2,
-      name: "Guides",
-      item: `${baseUrl}/guides`,
-    },
-  ],
-}
-
 export default function GuidesPage() {
   return (
     <div className="min-h-screen bg-canvas">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
       <header className="border-b border-subtle">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
           <Link
             href="/"
             className="focus-ring rounded text-sm font-semibold text-fg"
@@ -76,7 +59,7 @@ export default function GuidesPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-6 py-16">
+      <main className="mx-auto w-full max-w-5xl px-6 py-16">
         <h1 className="text-4xl font-semibold text-fg md:text-5xl">Guides</h1>
         <p className="mt-5 max-w-[62ch] text-md text-muted">
           Four short pieces on getting a kanban board to earn its place. They
@@ -92,21 +75,20 @@ export default function GuidesPage() {
           so.
         </p>
 
-        <ul className="mt-12 divide-y divide-subtle border-y border-subtle">
+        <ul className="mt-12 grid gap-4 sm:grid-cols-2">
           {guides.map((guide) => (
-            <li key={guide.href} className="py-7">
-              <h2 className="text-xl font-medium text-fg">
-                <Link
-                  href={guide.href}
-                  className="focus-ring rounded transition-colors duration-fast hover:text-accent"
-                >
-                  {guide.title}
-                </Link>
-              </h2>
-              <p className="mt-2 max-w-[64ch] text-sm text-muted">
-                {guide.summary}
-              </p>
-              <p className="mt-2 text-xs text-subtle">{guide.reads}</p>
+            <li key={guide.href}>
+              <Link
+                href={guide.href}
+                className="focus-ring flex h-full flex-col rounded-panel border border-subtle bg-surface p-6 transition-colors duration-fast hover:border-strong"
+              >
+                <h2 className="text-lg font-medium text-fg">{guide.title}</h2>
+                <p className="mt-3 text-sm text-muted">{guide.summary}</p>
+                <p className="mt-auto flex items-center gap-1.5 pt-4 text-xs text-subtle">
+                  <ArrowRight aria-hidden className="size-3.5" />
+                  {guide.reads}
+                </p>
+              </Link>
             </li>
           ))}
         </ul>

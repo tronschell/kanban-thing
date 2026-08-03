@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { motion, useReducedMotion } from "framer-motion"
 import {
+  ArrowRight,
   CalendarRange,
   Columns3,
   Link2,
@@ -13,11 +14,21 @@ import {
 } from "lucide-react"
 import { siBluesky, siX } from "simple-icons"
 import { Button } from "@/components/ui/button"
+import { BrandCycle } from "@/components/brand-cycle"
 import { CliBanner } from "@/components/cli-banner"
 import { DemoBoard } from "@/components/demo-board"
 import { readLibrary } from "@/lib/board-library"
-import { FONT_STACKS, PRESETS } from "@/lib/themes"
+import {
+  applyTheme,
+  DEFAULT_PRESET_ID,
+  FONT_STACKS,
+  loadTheme,
+  PRESETS,
+  saveTheme,
+} from "@/lib/themes"
 import { FAQS } from "./faqs"
+
+const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
 export default function HomeContent() {
   return (
@@ -53,7 +64,7 @@ function Reveal({
       initial={reduceMotion ? false : { opacity: 0, y: 12 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-64px" }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.4, ease: EASE_OUT }}
     >
       {children}
     </motion.div>
@@ -91,10 +102,10 @@ function SiteHeader() {
             Guides
           </Link>
           <Link
-            href="/cli"
+            href="/agents"
             className="focus-ring hidden rounded text-sm text-muted transition-colors duration-fast hover:text-fg sm:inline"
           >
-            CLI
+            AI agents
           </Link>
           <Link
             href="/about"
@@ -111,17 +122,55 @@ function SiteHeader() {
   )
 }
 
+function MarkedWord({ children }: { children: ReactNode }) {
+  const reduceMotion = useReducedMotion()
+
+  const cycle = (scaleX: number[], times: number[]) =>
+    reduceMotion
+      ? {}
+      : {
+          initial: { scaleX: 0 },
+          animate: { scaleX },
+          transition: {
+            duration: 9,
+            times,
+            repeat: Infinity,
+            ease: EASE_OUT,
+          },
+        }
+
+  return (
+    <span className="relative inline-block whitespace-nowrap">
+      <motion.span
+        aria-hidden
+        className="absolute inset-x-[-0.12em] bottom-[0.02em] top-[0.12em] origin-left rounded-[0.08em] bg-support opacity-30"
+        {...cycle([0, 0, 1, 1, 0], [0, 0.33, 0.38, 0.95, 1])}
+      />
+      <motion.span
+        aria-hidden
+        className="absolute inset-x-[-0.12em] bottom-0 h-[0.07em] origin-left rounded-full bg-support"
+        {...cycle(
+          [0, 1, 1, 0, 0, 1, 1, 0],
+          [0, 0.05, 0.28, 0.33, 0.66, 0.71, 0.95, 1]
+        )}
+      />
+      <span className="relative">{children}</span>
+    </span>
+  )
+}
+
 function Hero() {
   return (
     <section className="pb-16 pt-14 md:pt-20">
       <div className="mx-auto w-full max-w-4xl px-6">
         <h1 className="text-4xl font-semibold text-fg md:text-5xl">
-          A shared kanban board, without the sign-up
+          A <MarkedWord>free</MarkedWord> online kanban board, without the
+          sign-up
         </h1>
         <p className="mt-5 max-w-[58ch] text-md text-muted">
           Name a board, set a password, get a link. Send the link to anyone and
-          they open the same board and drag the same cards. No account, no
-          email, no install, no trial.
+          they open the same board and drag the same cards. No login, no
+          registration, no email, no install.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <Button asChild variant="primary" size="lg">
@@ -131,6 +180,20 @@ function Hero() {
             <Link href="/about">What it does</Link>
           </Button>
         </div>
+
+        <Link
+          href="/agents"
+          className="focus-ring group mt-6 inline-flex items-start gap-2 rounded text-sm text-subtle transition-colors duration-fast hover:text-fg"
+        >
+          <BrandCycle className="size-4 shrink-0 translate-y-0.5" />
+          <span>
+            Works with Claude Code, Cursor, ChatGPT and any MCP client
+            <ArrowRight
+              aria-hidden
+              className="ml-1.5 inline size-3.5 align-[-0.15em] transition-transform duration-fast group-hover:translate-x-0.5"
+            />
+          </span>
+        </Link>
       </div>
 
       <div className="mt-12 md:mt-16">
@@ -238,6 +301,16 @@ function Step({
 }
 
 function Appearances() {
+  const [presetId, setPresetId] = useState(DEFAULT_PRESET_ID)
+
+  useEffect(() => setPresetId(loadTheme().presetId), [])
+
+  const choose = (id: string) => {
+    const state = { presetId: id, overrides: {} }
+    saveTheme(state, applyTheme(state))
+    setPresetId(id)
+  }
+
   return (
     <section aria-labelledby="appearances" className="border-t border-subtle">
       <div className="mx-auto w-full max-w-4xl px-6 py-16">
@@ -249,50 +322,63 @@ function Appearances() {
             Six interfaces for the same kanban board
           </h2>
           <p className="mt-4 max-w-[62ch] text-md text-muted">
-            The board above is drawn by whichever of these you pick, from
-            Appearance in the board menu. Each one changes the type, the colour,
-            the corner radius and the shape of the cards and columns. Tune the
-            colours and fonts afterwards if you want to. The choice is kept in
-            your browser.
+            Pick one and this page changes with it, board above included. Each
+            one changes the type, the colour, the corner radius and the shape of
+            the cards and columns. Tune the colours and fonts afterwards from
+            Appearance in the board menu. The choice is kept in your browser and
+            carries over to every board you open.
           </p>
           <ul className="mt-10 grid gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
             {PRESETS.map((preset) => (
               <li key={preset.id}>
-                <span
-                  className="flex h-24 flex-col justify-between border border-subtle p-3"
-                  style={{
-                    backgroundColor: preset.base.canvas,
-                    borderRadius: `${preset.base.radius + 2}px`,
-                  }}
+                <button
+                  type="button"
+                  onClick={() => choose(preset.id)}
+                  aria-pressed={preset.id === presetId}
+                  className={`focus-ring w-full rounded-panel text-left ${
+                    preset.id === presetId
+                      ? "ring-2 ring-accent ring-offset-4 ring-offset-canvas"
+                      : ""
+                  }`}
                 >
                   <span
-                    className="text-md"
+                    className="flex h-24 flex-col justify-between border border-subtle p-3"
                     style={{
-                      color: preset.base.fg,
-                      fontFamily: FONT_STACKS[preset.base.fontSans].stack,
-                      fontWeight: preset.base.weightHeading,
+                      backgroundColor: preset.base.canvas,
+                      borderRadius: `${preset.base.radius + 2}px`,
                     }}
                   >
-                    {preset.name}
-                  </span>
-                  <span aria-hidden className="flex items-center gap-1.5">
                     <span
-                      className="h-2 w-14"
+                      className="text-md"
                       style={{
-                        backgroundColor: preset.base.accent,
-                        borderRadius: `${preset.base.radius}px`,
+                        color: preset.base.fg,
+                        fontFamily: FONT_STACKS[preset.base.fontSans].stack,
+                        fontWeight: preset.base.weightHeading,
                       }}
-                    />
-                    <span
-                      className="h-2 w-7"
-                      style={{
-                        backgroundColor: preset.base.support,
-                        borderRadius: `${preset.base.radius}px`,
-                      }}
-                    />
+                    >
+                      {preset.name}
+                    </span>
+                    <span aria-hidden className="flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-14"
+                        style={{
+                          backgroundColor: preset.base.accent,
+                          borderRadius: `${preset.base.radius}px`,
+                        }}
+                      />
+                      <span
+                        className="h-2 w-7"
+                        style={{
+                          backgroundColor: preset.base.support,
+                          borderRadius: `${preset.base.radius}px`,
+                        }}
+                      />
+                    </span>
                   </span>
-                </span>
-                <p className="mt-3 text-sm text-muted">{preset.tagline}</p>
+                  <span className="mt-3 block text-sm text-muted">
+                    {preset.tagline}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
@@ -484,8 +570,10 @@ function SiteFooter() {
           </a>
         </p>
         <nav aria-label="Footer" className="flex items-center gap-5">
+          <FooterLink href="/guides">Guides</FooterLink>
           <FooterLink href="/about">About</FooterLink>
           <FooterLink href="/cli">CLI</FooterLink>
+          <FooterLink href="/agents">AI agents</FooterLink>
           <FooterLink href="/terms">Terms</FooterLink>
           <FooterLink href="/privacy">Privacy</FooterLink>
           <SocialLink

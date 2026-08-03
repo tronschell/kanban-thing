@@ -334,6 +334,10 @@
   ::selection {
     background-color: var(--accent-soft);
   }
+
+  [data-page-content] h2 {
+    scroll-margin-top: 5rem;
+  }
 }
 
 @layer components {

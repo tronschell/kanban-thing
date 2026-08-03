@@ -17,6 +17,7 @@ export default function RetrospectiveBoardGuide() {
       title="How to run a retrospective on a shared board"
       breadcrumb="Retrospective board"
       path="/guides/retrospective-board"
+      published="2026-08-02"
       lead="A retrospective is one meeting with a short shelf life, which makes it an awkward fit for a permanent project tool and a very good fit for a board you can throw away afterwards. Here is a setup that takes about a minute."
     >
       <h2>What the meeting is for</h2>

@@ -1,31 +1,22 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { generateMetadata } from "@/lib/metadata"
+import { baseUrl, generateMetadata } from "@/lib/metadata"
 import { Button } from "@/components/ui/button"
 
 export const metadata: Metadata = generateMetadata({
-  title: "About - Simple Kanban Board Tool",
+  title: "About — A Free Kanban Board With No Accounts",
   description:
-    "Learn about KanbanThing, a simple and efficient Kanban board application designed to help individuals and teams organize their work effectively.",
+    "What KanbanThing is, what it does and what it leaves out: a free kanban board shared by link, with no login, no registration, and boards that expire.",
   path: "/about",
 })
 
 const structuredData = {
   "@context": "https://schema.org",
   "@type": "AboutPage",
-  mainEntity: {
-    "@type": "SoftwareApplication",
-    name: "KanbanThing",
-    applicationCategory: "ProjectManagementApplication",
-    operatingSystem: "Web",
-    offers: {
-      "@type": "Offer",
-      price: "0",
-      priceCurrency: "USD",
-    },
-    description:
-      "A simple, free, and efficient Kanban board application/tool designed to help individuals and teams organize their work effectively.",
-  },
+  "@id": `${baseUrl}/about#about`,
+  url: `${baseUrl}/about`,
+  isPartOf: { "@id": `${baseUrl}/#website` },
+  mainEntity: { "@id": `${baseUrl}/#app` },
 }
 
 export default function AboutPage() {
@@ -93,6 +84,10 @@ export default function AboutPage() {
               A <Link href="/cli">command line client</Link> that drives the
               same board from a terminal, with <code>--json</code> on every
               command
+            </li>
+            <li>
+              An <Link href="/agents">MCP server and skill for AI agents</Link>,
+              needing no account and no API key
             </li>
           </ul>
 

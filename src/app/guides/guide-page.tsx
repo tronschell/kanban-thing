@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { PageNav } from "@/components/page-nav"
 import { baseUrl } from "@/lib/metadata"
 
 interface GuidePageProps {
@@ -8,16 +9,36 @@ interface GuidePageProps {
   breadcrumb: string
   path: string
   lead: string
+  published: string
   children: ReactNode
 }
 
-const breadcrumbList = (breadcrumb: string, path: string) => ({
+const structuredData = ({
+  title,
+  breadcrumb,
+  path,
+  lead,
+  published,
+}: Omit<GuidePageProps, "children">) => ({
   "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
-    { "@type": "ListItem", position: 2, name: "Guides", item: `${baseUrl}/guides` },
-    { "@type": "ListItem", position: 3, name: breadcrumb, item: `${baseUrl}${path}` },
+  "@graph": [
+    {
+      "@type": "Article",
+      headline: title,
+      description: lead,
+      datePublished: published,
+      author: { "@id": `${baseUrl}/#organization` },
+      publisher: { "@id": `${baseUrl}/#organization` },
+      mainEntityOfPage: `${baseUrl}${path}`,
+    },
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
+        { "@type": "ListItem", position: 2, name: "Guides", item: `${baseUrl}/guides` },
+        { "@type": "ListItem", position: 3, name: breadcrumb, item: `${baseUrl}${path}` },
+      ],
+    },
   ],
 })
 
@@ -26,6 +47,7 @@ export function GuidePage({
   breadcrumb,
   path,
   lead,
+  published,
   children,
 }: GuidePageProps) {
   return (
@@ -33,11 +55,13 @@ export function GuidePage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbList(breadcrumb, path)),
+          __html: JSON.stringify(
+            structuredData({ title, breadcrumb, path, lead, published }),
+          ),
         }}
       />
       <header className="border-b border-subtle">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
           <Link
             href="/"
             className="focus-ring rounded text-sm font-semibold text-fg"
@@ -50,7 +74,7 @@ export function GuidePage({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-6 py-16">
+      <main className="mx-auto w-full max-w-5xl px-6 py-16">
         <nav aria-label="Breadcrumb">
           <ol className="flex flex-wrap items-center gap-2 text-xs text-subtle">
             <li>
@@ -82,15 +106,23 @@ export function GuidePage({
         </h1>
         <p className="mt-5 max-w-[62ch] text-md text-muted">{lead}</p>
 
-        <div className="prose mt-10">{children}</div>
+        <div className="mt-12 gap-x-14 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start">
+          <PageNav />
 
-        <div className="mt-12 flex flex-wrap items-center gap-3 border-t border-subtle pt-8">
-          <Button asChild variant="primary">
-            <Link href="/onboarding">Create a board</Link>
-          </Button>
-          <Button asChild variant="ghost">
-            <Link href="/guides">All guides</Link>
-          </Button>
+          <div>
+            <div className="prose" data-page-content>
+              {children}
+            </div>
+
+            <div className="mt-12 flex flex-wrap items-center gap-3 border-t border-subtle pt-8">
+              <Button asChild variant="primary">
+                <Link href="/onboarding">Create a board</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/guides">All guides</Link>
+              </Button>
+            </div>
+          </div>
         </div>
       </main>
     </div>

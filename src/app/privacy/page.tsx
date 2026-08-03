@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 export const metadata: Metadata = generateMetadata({
   title: "Privacy Policy",
   description:
-    "Our privacy policy explains how we handle your data at KanbanThing, including board data, analytics, and cookie usage.",
+    "Our privacy policy explains what board data KanbanThing stores, how long boards are kept, and how analytics and advertising cookies are used.",
   path: "/privacy",
 })
 
@@ -15,11 +15,7 @@ const structuredData = {
   "@type": "WebPage",
   name: "KanbanThing Privacy Policy",
   url: `${baseUrl}/privacy`,
-  publisher: {
-    "@type": "Organization",
-    name: "KanbanThing",
-    url: baseUrl,
-  },
+  publisher: { "@id": `${baseUrl}/#organization` },
 }
 
 export default function PrivacyPage() {

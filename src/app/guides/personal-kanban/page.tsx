@@ -17,6 +17,7 @@ export default function PersonalKanbanGuide() {
       title="Personal kanban: running a board for one"
       breadcrumb="Personal kanban"
       path="/guides/personal-kanban"
+      published="2026-08-02"
       lead="A board built for a team is a coordination device. A board built for one person is an attention device, and it needs different columns, a much harder limit on what is in flight, and a habit of looking at it once a week."
     >
       <h2>What personal kanban is</h2>

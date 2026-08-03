@@ -40,6 +40,11 @@ export const FAQS = [
       "Only the people you send the link to. Boards are not listed anywhere and are not indexed by search engines, and every board has a password set when it is created. Anything you type onto a card is stored as you typed it, so passwords, payment details and other sensitive information do not belong on a board.",
   },
   {
+    question: "Can an AI agent use a KanbanThing board?",
+    answer:
+      "Yes. KanbanThing hosts an MCP server, so Claude, ChatGPT, Cursor or any other MCP client can create a board and add, list, move and edit cards. It needs no account, no OAuth and no API key, which is what usually stops an agent from using a task board at all. There is also an installable skill that teaches an agent the conventions.",
+  },
+  {
     question: "Is there a command line client?",
     answer:
       "Yes. The kanbanthing CLI signs in to a board with its link and password, then lists, adds, edits and moves cards and manages columns from a terminal. Every command takes a --json flag, so a script can drive the same board a person has open in a browser.",
