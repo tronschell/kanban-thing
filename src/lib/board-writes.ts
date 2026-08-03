@@ -7,6 +7,7 @@ export type WriteResult = 'ok' | 'wrong_password' | 'not_found'
 
 const passwordKey = (boardId: string) => `board_password_${boardId}`
 const accessKey = (boardId: string) => `board_access_${boardId}`
+const inMemoryPasswords = new Map<string, string>()
 
 const getStorage = (kind: 'local' | 'session'): Storage | null => {
   if (typeof window === 'undefined') return null
@@ -21,16 +22,24 @@ const getStorage = (kind: 'local' | 'session'): Storage | null => {
 /**
  * Passwords are tab-scoped now. A legacy localStorage value is migrated the
  * first time it is read so existing boards keep working without leaving the
- * credential origin-wide and persistent.
+ * credential origin-wide and persistent. If sessionStorage is unavailable,
+ * newly entered passwords stay in this page's memory only; they are never
+ * written to persistent localStorage as a fallback.
  */
 export const boardPassword = (boardId: string) => {
+  const inMemory = inMemoryPasswords.get(boardId)
+  if (inMemory !== undefined) return inMemory
+
   const key = passwordKey(boardId)
   const session = getStorage('session')
   const local = getStorage('local')
 
   try {
     const current = session?.getItem(key)
-    if (current !== null && current !== undefined) return current
+    if (current !== null && current !== undefined) {
+      inMemoryPasswords.set(boardId, current)
+      return current
+    }
   } catch {
     /* fall through to the legacy storage below */
   }
@@ -50,16 +59,20 @@ export const boardPassword = (boardId: string) => {
       session.setItem(accessKey(boardId), 'true')
       local?.removeItem(key)
       local?.removeItem(accessKey(boardId))
+      inMemoryPasswords.set(boardId, legacy)
       return legacy
     } catch {
       // If session storage is unavailable, keep the legacy value usable.
     }
   }
 
+  inMemoryPasswords.set(boardId, legacy)
   return legacy
 }
 
 export const rememberBoardPassword = (boardId: string, password: string) => {
+  inMemoryPasswords.set(boardId, password)
+
   const key = passwordKey(boardId)
   const session = getStorage('session')
   const local = getStorage('local')
@@ -72,19 +85,22 @@ export const rememberBoardPassword = (boardId: string, password: string) => {
       local?.removeItem(accessKey(boardId))
       return
     } catch {
-      // Fall back to the old location only when the tab cannot use session storage.
+      // Keep the new credential in memory only when session storage is blocked.
     }
   }
 
   try {
-    local?.setItem(key, password)
-    local?.setItem(accessKey(boardId), 'true')
+    // Remove any legacy copy rather than persisting the new credential there.
+    local?.removeItem(key)
+    local?.removeItem(accessKey(boardId))
   } catch {
-    /* private mode or a full quota: the next action will ask for the password */
+    /* private mode or a full quota: the in-memory value still serves this page */
   }
 }
 
 export const forgetBoardPassword = (boardId: string) => {
+  inMemoryPasswords.delete(boardId)
+
   for (const storage of [getStorage('session'), getStorage('local')]) {
     try {
       storage?.removeItem(passwordKey(boardId))

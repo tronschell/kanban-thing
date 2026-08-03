@@ -82,10 +82,13 @@ export default function PrivacyPage() {
             storage, along with its name, expiry/opened metadata, and an
             anonymous count-only thumbnail. It keeps the password you entered
             in this tab&apos;s session storage, so a reload in the same tab does not
-            ask for it again.
+            ask for it again when session storage is available. If the browser
+            blocks session storage, a newly entered password stays in page
+            memory only and is lost on reload.
             Closing the tab or choosing <strong>Lock board</strong> clears the
             saved password. Existing browser-local passwords are migrated when
-            they are next used. The password is still plain text to this site:
+            they are next used and session storage is available. The password
+            is still plain text to this site:
             session storage is not encryption and can be read by same-origin
             scripts, extensions, or anyone with access to the browser profile.
             Clearing browser data removes the board list, and you will need the

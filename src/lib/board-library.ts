@@ -72,17 +72,26 @@ const parseEntry = (value: unknown): LibraryEntry[] =>
 export const parseEntries = (value: unknown): LibraryEntry[] =>
   Array.isArray(value) ? value.flatMap(parseEntry) : []
 
+/** A user library mutation invalidates any refresh that started before it. */
+export const isCurrentLibraryRefresh = (refreshGeneration: number, currentGeneration: number) =>
+  refreshGeneration === currentGeneration
+
 export function readLibrary(): Library {
   try {
     const stored = localStorage.getItem(LIBRARY_KEY)
     const parsed: unknown = stored === null ? null : JSON.parse(stored)
     if (!isRecord(parsed) || parsed.version !== 1) return EMPTY_LIBRARY
 
-    return {
+    const library: Library = {
       version: 1,
       exportedAt: isTimestamp(parsed.exportedAt) ? parsed.exportedAt : null,
       entries: parseEntries(parsed.entries),
     }
+
+    // Persist normalized legacy previews immediately so raw labels and colors
+    // do not remain in localStorage after the first library read.
+    if (stored !== JSON.stringify(library)) writeLibrary(library)
+    return library
   } catch {
     return EMPTY_LIBRARY
   }

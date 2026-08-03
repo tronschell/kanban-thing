@@ -97,6 +97,7 @@ export function useBoardAuth(boardId: string | null) {
       const status = data as WriteResult
       if (status === 'ok') {
         rememberBoardPassword(boardId, password)
+        setRequiresPassword(true)
         setIsAuthenticated(true)
       }
       return status

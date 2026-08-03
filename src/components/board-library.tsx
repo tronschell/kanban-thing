@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { boardPassword } from '@/lib/board-writes'
 import {
   forgetBoards,
+  isCurrentLibraryRefresh,
   parseEntries,
   readLibrary,
   restoreBoards,
@@ -167,6 +168,7 @@ export function BoardLibrary() {
   } | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refreshGeneration = useRef(0)
 
   useEffect(
     () => () => {
@@ -176,10 +178,13 @@ export function BoardLibrary() {
   )
 
   const refresh = useCallback(async (current: Library) => {
+    const generation = ++refreshGeneration.current
     setLibrary(current)
     if (current.entries.length === 0) return
 
     const live = await fetchBoardSummaries(current.entries.map((entry) => entry.id))
+    if (!isCurrentLibraryRefresh(generation, refreshGeneration.current)) return
+
     const statusOf = (id: string) => live.get(id)?.status
 
     const next = {
@@ -211,6 +216,7 @@ export function BoardLibrary() {
   const forget = () => {
     if (!pendingForgetIds) return
 
+    refreshGeneration.current += 1
     const forgottenGoneIds = goneIds.filter((id) => pendingForgetIds.includes(id))
     const result = forgetBoards(pendingForgetIds)
     setLibrary(result.library)
@@ -229,6 +235,7 @@ export function BoardLibrary() {
   const undo = () => {
     if (!undoForget) return
 
+    refreshGeneration.current += 1
     if (undoTimer.current) clearTimeout(undoTimer.current)
     setLibrary(restoreBoards(undoForget.forgotten))
     setGoneIds((current) => [...new Set([...current, ...undoForget.goneIds])])
@@ -327,9 +334,11 @@ export function BoardLibrary() {
               </Button>
             </div>
             <p className="mt-3 max-w-[62ch] text-xs text-subtle">
-              Board passwords stay in this tab&apos;s session storage in plain text. They are not
-              encrypted, are cleared when the tab closes or you lock the board, and are never
-              written to the export file. Keep a separate copy if you need recovery.
+              Board passwords normally stay in this tab&apos;s session storage in plain text. If the
+              browser blocks session storage, a newly entered password stays in page memory only
+              and is lost on reload. They are not encrypted, are cleared when the tab closes or you
+              lock the board, and are never written to the export file. Keep a separate copy if you
+              need recovery.
             </p>
             <p className="mt-2 max-w-[62ch] text-xs text-subtle">
               Board thumbnails contain only anonymous column and card counts; column labels and

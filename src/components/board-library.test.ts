@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { timeLeft } from './board-library'
 import {
   forgetBoards,
+  isCurrentLibraryRefresh,
   readLibrary,
   rememberBoard,
   restoreBoards,
@@ -74,6 +75,37 @@ describe('board library privacy and recovery', () => {
     })
 
     expect(readLibrary().entries[0].preview).toEqual([{ cardCount: 1 }, { cardCount: 1 }])
+  })
+
+  it('persists sanitized legacy previews on the first read', () => {
+    localStorage.setItem(
+      'kanbanthing.library.v1',
+      JSON.stringify({
+        version: 1,
+        exportedAt: null,
+        entries: [
+          {
+            id: 'board-1',
+            name: 'Private planning',
+            expiresAt: inMs(10 * DAY),
+            openedAt: NOW.toISOString(),
+            preview: [{ name: 'Sensitive workstream', cardColors: ['#ff0000', '#00ff00'] }],
+          },
+        ],
+      })
+    )
+
+    expect(readLibrary().entries[0].preview).toEqual([{ cardCount: 2 }])
+
+    const persisted = localStorage.getItem('kanbanthing.library.v1')
+    expect(persisted).not.toContain('Sensitive workstream')
+    expect(persisted).not.toContain('cardColors')
+    expect(JSON.parse(persisted!).entries[0].preview).toEqual([{ cardCount: 2 }])
+  })
+
+  it('invalidates a refresh result started before a library mutation', () => {
+    expect(isCurrentLibraryRefresh(4, 4)).toBe(true)
+    expect(isCurrentLibraryRefresh(4, 5)).toBe(false)
   })
 
   it('forgets and restores the board entry and tab credential through undo', () => {

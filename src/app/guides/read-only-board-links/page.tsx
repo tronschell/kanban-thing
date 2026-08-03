@@ -128,7 +128,10 @@ export default function ReadOnlyBoardLinksGuide() {
       <h2>Where the password actually lives</h2>
       <p>
         The password you typed is kept in this tab&apos;s session storage, in
-        plain text, so a reload in the same tab does not ask for it every time.
+        plain text, so a reload in the same tab does not ask for it every time
+        when session storage is available. If the browser blocks session
+        storage, a newly entered password stays in page memory only and is lost
+        on reload.
         Choose <strong>Lock board</strong> from the board menu when you leave a
         shared screen. Locking clears the saved password from this tab; it does
         not revoke the board password or server access for somebody who already
