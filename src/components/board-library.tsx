@@ -5,14 +5,16 @@ import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { saveAs } from 'file-saver'
 import { AlertTriangle, Download, HardDrive, Upload, X } from 'lucide-react'
-import { Badge, Button, IconButton, Input, Skeleton } from '@/components/ui'
+import { Badge, Button, IconButton, Input, Modal, ModalFooter, Skeleton } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
 import { boardPassword } from '@/lib/board-writes'
 import {
   forgetBoards,
   parseEntries,
   readLibrary,
+  restoreBoards,
   writeLibrary,
+  type ForgottenBoard,
   type Library,
   type LibraryEntry,
   type PreviewColumn,
@@ -72,14 +74,16 @@ function BoardThumbnail({ preview }: { preview: PreviewColumn[] }) {
       {preview.map((column, columnIndex) => (
         <div
           key={columnIndex}
+          aria-label={`Column ${columnIndex + 1}, ${column.cardCount} cards`}
           className="flex min-w-0 flex-1 flex-col gap-1 overflow-hidden rounded-tag bg-surface p-1"
         >
-          <p className="truncate text-2xs uppercase tracking-wide text-subtle">{column.name}</p>
-          {column.cardColors.map((color, cardIndex) => (
+          <p className="truncate text-2xs uppercase tracking-wide text-subtle">
+            Column {columnIndex + 1}
+          </p>
+          {Array.from({ length: column.cardCount }, (_, cardIndex) => (
             <span
               key={cardIndex}
               className="h-2 shrink-0 rounded-tag border border-subtle bg-surface-raised"
-              style={color ? { backgroundColor: color, borderColor: color } : undefined}
             />
           ))}
         </div>
@@ -156,7 +160,20 @@ export function BoardLibrary() {
   const [goneIds, setGoneIds] = useState<string[]>([])
   const [checkFailed, setCheckFailed] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pendingForgetIds, setPendingForgetIds] = useState<string[] | null>(null)
+  const [undoForget, setUndoForget] = useState<{
+    forgotten: ForgottenBoard[]
+    goneIds: string[]
+  } | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (undoTimer.current) clearTimeout(undoTimer.current)
+    },
+    []
+  )
 
   const refresh = useCallback(async (current: Library) => {
     setLibrary(current)
@@ -187,9 +204,37 @@ export function BoardLibrary() {
     refresh(readLibrary())
   }, [refresh])
 
-  const forget = (ids: string[]) => {
-    setLibrary(forgetBoards(ids))
-    setGoneIds((current) => current.filter((id) => !ids.includes(id)))
+  const requestForget = (ids: string[]) => {
+    if (ids.length > 0) setPendingForgetIds(ids)
+  }
+
+  const forget = () => {
+    if (!pendingForgetIds) return
+
+    const forgottenGoneIds = goneIds.filter((id) => pendingForgetIds.includes(id))
+    const result = forgetBoards(pendingForgetIds)
+    setLibrary(result.library)
+    setGoneIds((current) => current.filter((id) => !pendingForgetIds.includes(id)))
+    setPendingForgetIds(null)
+    setNotice(null)
+
+    if (undoTimer.current) clearTimeout(undoTimer.current)
+    setUndoForget({ forgotten: result.forgotten, goneIds: forgottenGoneIds })
+    undoTimer.current = setTimeout(() => {
+      setUndoForget(null)
+      undoTimer.current = null
+    }, 10000)
+  }
+
+  const undo = () => {
+    if (!undoForget) return
+
+    if (undoTimer.current) clearTimeout(undoTimer.current)
+    setLibrary(restoreBoards(undoForget.forgotten))
+    setGoneIds((current) => [...new Set([...current, ...undoForget.goneIds])])
+    setUndoForget(null)
+    undoTimer.current = null
+    setNotice('The board was restored to this browser.')
   }
 
   const exportList = () => {
@@ -282,8 +327,13 @@ export function BoardLibrary() {
               </Button>
             </div>
             <p className="mt-3 max-w-[62ch] text-xs text-subtle">
-              Board passwords are kept separately in this browser in plain text. They are never
-              written to the export file, so store them somewhere of your own as well.
+              Board passwords stay in this tab&apos;s session storage in plain text. They are not
+              encrypted, are cleared when the tab closes or you lock the board, and are never
+              written to the export file. Keep a separate copy if you need recovery.
+            </p>
+            <p className="mt-2 max-w-[62ch] text-xs text-subtle">
+              Board thumbnails contain only anonymous column and card counts; column labels and
+              card colors are not saved in the library.
             </p>
           </div>
         </div>
@@ -309,6 +359,23 @@ export function BoardLibrary() {
         </p>
       )}
 
+      {undoForget && (
+        <div
+          role="status"
+          className="mt-4 flex flex-wrap items-center gap-3 rounded-panel border border-subtle bg-surface px-4 py-3"
+        >
+          <p className="min-w-0 flex-1 text-sm text-muted">
+            {undoForget.forgotten.length === 1
+              ? 'Board removed from this browser.'
+              : `${undoForget.forgotten.length} boards removed from this browser.`}{' '}
+            Undo is available briefly.
+          </p>
+          <Button size="sm" onClick={undo}>
+            Undo
+          </Button>
+        </div>
+      )}
+
       {goneIds.length > 0 && (
         <div
           role="status"
@@ -320,7 +387,7 @@ export function BoardLibrary() {
               ? 'One board is gone. It expired or was deleted, and its link no longer works.'
               : `${goneIds.length} boards are gone. They expired or were deleted, and their links no longer work.`}
           </p>
-          <Button size="sm" onClick={() => forget(goneIds)}>
+          <Button size="sm" onClick={() => requestForget(goneIds)}>
             Remove {goneIds.length === 1 ? 'it' : 'them'}
           </Button>
         </div>
@@ -369,11 +436,34 @@ export function BoardLibrary() {
               key={entry.id}
               entry={entry}
               isGone={goneIds.includes(entry.id)}
-              onForget={() => forget([entry.id])}
+              onForget={() => requestForget([entry.id])}
             />
           ))}
         </ul>
       )}
+
+      <Modal
+        open={pendingForgetIds !== null}
+        onClose={() => setPendingForgetIds(null)}
+        title={
+          pendingForgetIds?.length === 1 ? 'Forget this board?' : 'Forget these boards?'
+        }
+        size="sm"
+      >
+        <p className="text-sm text-muted">
+          This removes the board{pendingForgetIds?.length === 1 ? '' : 's'} from this browser and
+          clears the saved password in this tab. It does not delete anything on the server. You can
+          undo for a few seconds; after that, recovery requires the board link and password.
+        </p>
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => setPendingForgetIds(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={forget}>
+            Forget {pendingForgetIds?.length === 1 ? 'board' : 'boards'}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </div>
   )
 }

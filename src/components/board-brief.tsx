@@ -5,13 +5,11 @@ import { ChevronDown, ChevronRight, Pencil, Plus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Button, IconButton, Modal, ModalFooter, Textarea } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
+import { boardPassword } from '@/lib/board-writes'
 
 const BRIEF_MAX_LENGTH = 4000
 
 const collapsedKey = (boardId: string) => `kanbanthing.brief.collapsed.${boardId}`
-
-const storedPassword = (boardId: string) =>
-  localStorage.getItem(`board_password_${boardId}`) ?? ''
 
 const SAVE_ERRORS: Record<string, string> = {
   wrong_password: 'The stored board password is no longer correct.',
@@ -40,7 +38,7 @@ export default function BoardBrief({ boardId }: { boardId: string }) {
     const load = async () => {
       const { data, error } = await supabase.rpc('board_brief', {
         board_id_param: boardId,
-        password_attempt: storedPassword(boardId),
+        password_attempt: boardPassword(boardId),
       })
       if (cancelled) return
       setIsLoading(false)
@@ -84,7 +82,7 @@ export default function BoardBrief({ boardId }: { boardId: string }) {
 
     const { data, error } = await supabase.rpc('board_set_brief', {
       board_id_param: boardId,
-      password_attempt: storedPassword(boardId),
+      password_attempt: boardPassword(boardId),
       brief_param: draft,
     })
     setIsSaving(false)

@@ -5,17 +5,94 @@ type SupabaseClient = ReturnType<typeof createClient>
 
 export type WriteResult = 'ok' | 'wrong_password' | 'not_found'
 
-export const boardPassword = (boardId: string) =>
-  localStorage.getItem(`board_password_${boardId}`) ?? ''
+const passwordKey = (boardId: string) => `board_password_${boardId}`
+const accessKey = (boardId: string) => `board_access_${boardId}`
+
+const getStorage = (kind: 'local' | 'session'): Storage | null => {
+  if (typeof window === 'undefined') return null
+
+  try {
+    return kind === 'session' ? window.sessionStorage : window.localStorage
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Passwords are tab-scoped now. A legacy localStorage value is migrated the
+ * first time it is read so existing boards keep working without leaving the
+ * credential origin-wide and persistent.
+ */
+export const boardPassword = (boardId: string) => {
+  const key = passwordKey(boardId)
+  const session = getStorage('session')
+  const local = getStorage('local')
+
+  try {
+    const current = session?.getItem(key)
+    if (current !== null && current !== undefined) return current
+  } catch {
+    /* fall through to the legacy storage below */
+  }
+
+  let legacy: string | null = null
+  try {
+    legacy = local?.getItem(key) ?? null
+  } catch {
+    return ''
+  }
+
+  if (legacy === null) return ''
+
+  if (session) {
+    try {
+      session.setItem(key, legacy)
+      session.setItem(accessKey(boardId), 'true')
+      local?.removeItem(key)
+      local?.removeItem(accessKey(boardId))
+      return legacy
+    } catch {
+      // If session storage is unavailable, keep the legacy value usable.
+    }
+  }
+
+  return legacy
+}
 
 export const rememberBoardPassword = (boardId: string, password: string) => {
-  localStorage.setItem(`board_password_${boardId}`, password)
-  localStorage.setItem(`board_access_${boardId}`, 'true')
+  const key = passwordKey(boardId)
+  const session = getStorage('session')
+  const local = getStorage('local')
+
+  if (session) {
+    try {
+      session.setItem(key, password)
+      session.setItem(accessKey(boardId), 'true')
+      local?.removeItem(key)
+      local?.removeItem(accessKey(boardId))
+      return
+    } catch {
+      // Fall back to the old location only when the tab cannot use session storage.
+    }
+  }
+
+  try {
+    local?.setItem(key, password)
+    local?.setItem(accessKey(boardId), 'true')
+  } catch {
+    /* private mode or a full quota: the next action will ask for the password */
+  }
 }
 
 export const forgetBoardPassword = (boardId: string) => {
-  localStorage.removeItem(`board_password_${boardId}`)
-  localStorage.removeItem(`board_access_${boardId}`)
+  for (const storage of [getStorage('session'), getStorage('local')]) {
+    try {
+      storage?.removeItem(passwordKey(boardId))
+      storage?.removeItem(accessKey(boardId))
+    } catch {
+      /* storage may be unavailable in private browsing */
+    }
+  }
 }
 
 export const writeMessage = (result: WriteResult, fallback: string) => {

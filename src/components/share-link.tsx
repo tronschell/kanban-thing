@@ -13,6 +13,7 @@ import {
   ModalFooter,
 } from '@/components/ui'
 import { createClient } from '@/lib/supabase/client'
+import { boardPassword } from '@/lib/board-writes'
 
 type Status = 'idle' | 'copied' | 'revoked' | 'failed'
 
@@ -35,8 +36,6 @@ export default function ShareLink({ boardId }: { boardId: string }) {
     return () => clearTimeout(timer)
   }, [status])
 
-  const boardPassword = () => localStorage.getItem(`board_password_${boardId}`) ?? ''
-
   const copy = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url)
@@ -57,7 +56,7 @@ export default function ShareLink({ boardId }: { boardId: string }) {
 
     const { data, error } = await supabase.rpc('board_view_token', {
       board_id_param: boardId,
-      password_attempt: boardPassword(),
+      password_attempt: boardPassword(boardId),
     })
 
     if (error || data?.status !== 'ok') {
@@ -73,7 +72,7 @@ export default function ShareLink({ boardId }: { boardId: string }) {
 
     const { data, error } = await supabase.rpc('board_revoke_view_token', {
       board_id_param: boardId,
-      password_attempt: boardPassword(),
+      password_attempt: boardPassword(boardId),
     })
 
     if (error || data !== 'ok') {

@@ -138,8 +138,10 @@ function EditableBoard() {
     isAuthenticated,
     isLoading: isAuthLoading,
     checkFailed,
+    requiresPassword,
     unlock,
     lock,
+    setPasswordRequired,
   } = useBoardAuth(boardId)
 
   const [currentView, setCurrentView] = useState<'kanban' | 'calendar' | 'timeline' | 'pulse'>(
@@ -623,6 +625,9 @@ function EditableBoard() {
         boardName={boardName}
         expiresAt={expiresAt}
         onRenamed={setBoardName}
+        onPasswordChanged={setPasswordRequired}
+        onLock={lock}
+        canLock={requiresPassword === true}
         cards={cards}
         setBoardCards={setCards}
         setBacklogCards={setCards}

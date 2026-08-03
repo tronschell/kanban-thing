@@ -34,6 +34,9 @@ interface NavbarProps {
   boardName?: string
   expiresAt?: string
   onRenamed?: (name: string) => void
+  onPasswordChanged?: (required: boolean) => void
+  onLock?: () => void
+  canLock?: boolean
   cards?: Card[]
   setBoardCards?: React.Dispatch<React.SetStateAction<Card[]>>
   setBacklogCards?: React.Dispatch<React.SetStateAction<Card[]>>
@@ -60,6 +63,9 @@ export default function Navbar({
   boardName = '',
   expiresAt,
   onRenamed = () => {},
+  onPasswordChanged = () => {},
+  onLock = () => {},
+  canLock = false,
   cards = [],
   setBoardCards,
   setBacklogCards,
@@ -218,6 +224,8 @@ export default function Navbar({
                     onRename={() => setOpenModal('rename')}
                     onDuplicate={() => setOpenModal('duplicate')}
                     onSetPassword={() => setOpenModal('password')}
+                    onLock={onLock}
+                    canLock={canLock}
                     onLifespan={() => setOpenModal('lifespan')}
                     onExportJson={() => exportBoard(exportBoardAsJson)}
                     onExportCsv={() => exportBoard(exportBoardAsCsv)}
@@ -295,6 +303,7 @@ export default function Navbar({
             open={openModal === 'password'}
             onClose={closeModal}
             boardId={boardId}
+            onPasswordChanged={onPasswordChanged}
           />
 
           <BoardLifespanModal

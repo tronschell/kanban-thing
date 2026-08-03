@@ -24,6 +24,8 @@ interface BoardMenuProps {
   onRename: () => void
   onDuplicate: () => void
   onSetPassword: () => void
+  onLock: () => void
+  canLock: boolean
   onLifespan: () => void
   onExportJson: () => void
   onExportCsv: () => void
@@ -35,6 +37,8 @@ export function BoardMenu({
   onRename,
   onDuplicate,
   onSetPassword,
+  onLock,
+  canLock,
   onLifespan,
   onExportJson,
   onExportCsv,
@@ -63,6 +67,12 @@ export function BoardMenu({
           <Lock />
           Board password
         </DropdownMenuItem>
+        {canLock && (
+          <DropdownMenuItem onSelect={onLock}>
+            <Lock />
+            Lock board
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={onLifespan}>
           <CalendarClock />
           Board lifespan…

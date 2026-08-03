@@ -1,11 +1,17 @@
+import {
+  boardPassword,
+  forgetBoardPassword,
+  rememberBoardPassword,
+} from '@/lib/board-writes'
+
 const LIBRARY_KEY = 'kanbanthing.library.v1'
 
 const MAX_PREVIEW_COLUMNS = 6
 const MAX_PREVIEW_CARDS = 12
 
 export interface PreviewColumn {
-  name: string
-  cardColors: (string | null)[]
+  /** Deliberately content-free: board labels and card colors do not belong in the library preview. */
+  cardCount: number
 }
 
 export interface LibraryEntry {
@@ -27,21 +33,21 @@ const EMPTY_LIBRARY: Library = { version: 1, exportedAt: null, entries: [] }
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
+const parsePreviewColumn = (value: unknown): PreviewColumn[] => {
+  if (!isRecord(value)) return []
+
+  const cardCount =
+    typeof value.cardCount === 'number' && Number.isFinite(value.cardCount) && value.cardCount >= 0
+      ? Math.min(MAX_PREVIEW_CARDS, Math.floor(value.cardCount))
+      : Array.isArray(value.cardColors)
+        ? Math.min(MAX_PREVIEW_CARDS, value.cardColors.length)
+        : null
+
+  return cardCount === null ? [] : [{ cardCount }]
+}
+
 const parsePreview = (value: unknown): PreviewColumn[] =>
-  Array.isArray(value)
-    ? value.slice(0, MAX_PREVIEW_COLUMNS).flatMap((column) =>
-        isRecord(column) && typeof column.name === 'string' && Array.isArray(column.cardColors)
-          ? [
-              {
-                name: column.name,
-                cardColors: column.cardColors
-                  .slice(0, MAX_PREVIEW_CARDS)
-                  .map((color) => (typeof color === 'string' ? color : null)),
-              },
-            ]
-          : []
-      )
-    : []
+  Array.isArray(value) ? value.slice(0, MAX_PREVIEW_COLUMNS).flatMap(parsePreviewColumn) : []
 
 const isTimestamp = (value: unknown): value is string =>
   typeof value === 'string' && Number.isFinite(Date.parse(value))
@@ -103,11 +109,10 @@ export function rememberBoard(board: {
     expiresAt: board.expiresAt,
     openedAt: new Date().toISOString(),
     preview: board.columns.slice(0, MAX_PREVIEW_COLUMNS).map((column) => ({
-      name: column.name,
-      cardColors: board.cards
-        .filter((card) => card.column_id === column.id)
-        .slice(0, MAX_PREVIEW_CARDS)
-        .map((card) => card.color),
+      cardCount: Math.min(
+        MAX_PREVIEW_CARDS,
+        board.cards.filter((card) => card.column_id === column.id).length
+      ),
     })),
   }
 
@@ -118,18 +123,51 @@ export function rememberBoard(board: {
   })
 }
 
-export function forgetBoards(ids: string[]): Library {
+export interface ForgottenBoard {
+  entry: LibraryEntry
+  password: string | null
+}
+
+export interface ForgetBoardsResult {
+  library: Library
+  forgotten: ForgottenBoard[]
+}
+
+export function forgetBoards(ids: string[]): ForgetBoardsResult {
   const forgotten = new Set(ids)
   const library = readLibrary()
+  const forgottenEntries = library.entries
+    .filter((entry) => forgotten.has(entry.id))
+    .map((entry) => ({ entry, password: boardPassword(entry.id) || null }))
   const next = {
     ...library,
     entries: library.entries.filter((entry) => !forgotten.has(entry.id)),
   }
 
   writeLibrary(next)
-  for (const id of ids) {
-    localStorage.removeItem(`board_password_${id}`)
-    localStorage.removeItem(`board_access_${id}`)
+  for (const id of forgotten) forgetBoardPassword(id)
+  return { library: next, forgotten: forgottenEntries }
+}
+
+/**
+ * Restores only entries that are still absent. The password is held in memory
+ * by the caller for the short undo window and is never added to the library
+ * export or another recovery store.
+ */
+export function restoreBoards(forgotten: ForgottenBoard[]): Library {
+  const library = readLibrary()
+  const present = new Set(library.entries.map((entry) => entry.id))
+  const additions = forgotten
+    .filter(({ entry }) => !present.has(entry.id))
+    .map(({ entry }) => entry)
+  const next = {
+    ...library,
+    entries: [...additions, ...library.entries],
+  }
+
+  writeLibrary(next)
+  for (const { entry, password } of forgotten) {
+    if (!present.has(entry.id) && password) rememberBoardPassword(entry.id, password)
   }
   return next
 }

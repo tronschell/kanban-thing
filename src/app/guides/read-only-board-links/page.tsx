@@ -127,12 +127,21 @@ export default function ReadOnlyBoardLinksGuide() {
 
       <h2>Where the password actually lives</h2>
       <p>
-        The password you typed is kept in your own browser, in plain text, so
-        that you are not asked for it every time you open the board. Two
-        consequences follow.
+        The password you typed is kept in this tab&apos;s session storage, in
+        plain text, so a reload in the same tab does not ask for it every time.
+        Choose <strong>Lock board</strong> from the board menu when you leave a
+        shared screen. Locking clears the saved password from this tab; it does
+        not revoke the board password or server access for somebody who already
+        knows it.
       </p>
       <p>
-        It is not recoverable from the site. Nobody can reset a board password
+        Session storage is not encryption. Same-origin scripts, extensions, or
+        somebody with access to the browser profile can still read it while the
+        tab is open. It is used to limit persistence to one tab, not to make a
+        browser-only secret secure against that threat.
+      </p>
+      <p>
+        The password is not recoverable from the site. Nobody can reset a board password
         for you, because there is no account to prove anything against. If
         everyone forgets it, the board is gone as far as you are concerned and
         will delete itself on schedule.

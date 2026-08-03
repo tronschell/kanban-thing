@@ -209,9 +209,15 @@ interface SetPasswordModalProps {
   open: boolean
   onClose: () => void
   boardId: string
+  onPasswordChanged: (required: boolean) => void
 }
 
-export function SetPasswordModal({ open, onClose, boardId }: SetPasswordModalProps) {
+export function SetPasswordModal({
+  open,
+  onClose,
+  boardId,
+  onPasswordChanged,
+}: SetPasswordModalProps) {
   const [hasPassword, setHasPassword] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [password, setPassword] = useState('')
@@ -256,6 +262,7 @@ export function SetPasswordModal({ open, onClose, boardId }: SetPasswordModalPro
     if (password) rememberBoardPassword(boardId, password)
     else forgetBoardPassword(boardId)
 
+    onPasswordChanged(Boolean(password))
     onClose()
   }
 

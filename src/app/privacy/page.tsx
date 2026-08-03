@@ -78,10 +78,18 @@ export default function PrivacyPage() {
 
           <h2>What your browser stores</h2>
           <p>
-            KanbanThing keeps the id of your board and the password you entered
-            in your browser&apos;s local storage, so you are not asked for it
-            again on the same device. Clearing your browser data removes it, and
-            you will need the board link and password to get back in.
+            KanbanThing keeps the id of your board in this browser&apos;s local
+            storage, along with its name, expiry/opened metadata, and an
+            anonymous count-only thumbnail. It keeps the password you entered
+            in this tab&apos;s session storage, so a reload in the same tab does not
+            ask for it again.
+            Closing the tab or choosing <strong>Lock board</strong> clears the
+            saved password. Existing browser-local passwords are migrated when
+            they are next used. The password is still plain text to this site:
+            session storage is not encryption and can be read by same-origin
+            scripts, extensions, or anyone with access to the browser profile.
+            Clearing browser data removes the board list, and you will need the
+            board link and password to get back in.
           </p>
 
           <h2>Who can see your board</h2>

@@ -11,6 +11,7 @@ export function useBoardAuth(boardId: string | null) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [checkFailed, setCheckFailed] = useState(false)
+  const [requiresPassword, setRequiresPassword] = useState<boolean | null>(null)
   const supabase = useMemo(createClient, [])
 
   useEffect(() => {
@@ -18,6 +19,7 @@ export function useBoardAuth(boardId: string | null) {
 
     const checkAuth = async () => {
       if (!boardId) {
+        setRequiresPassword(false)
         setIsLoading(false)
         return
       }
@@ -33,6 +35,7 @@ export function useBoardAuth(boardId: string | null) {
 
         if (error) {
           console.error('Error checking board auth:', error)
+          setRequiresPassword(null)
           setCheckFailed(true)
           setIsAuthenticated(false)
           setIsLoading(false)
@@ -42,11 +45,14 @@ export function useBoardAuth(boardId: string | null) {
         // null means the board does not exist: let board_read report not-found instead of
         // showing a password form for a board nobody can ever unlock.
         if (needsPassword !== true) {
+          forgetBoardPassword(boardId)
+          setRequiresPassword(false)
           setIsAuthenticated(true)
           setIsLoading(false)
           return
         }
 
+        setRequiresPassword(true)
         const stored = boardPassword(boardId)
         if (!stored) {
           setIsAuthenticated(false)
@@ -65,6 +71,7 @@ export function useBoardAuth(boardId: string | null) {
       } catch (error) {
         if (cancelled) return
         console.error('Error checking board auth:', error)
+        setRequiresPassword(null)
         setIsAuthenticated(false)
       }
 
@@ -103,5 +110,17 @@ export function useBoardAuth(boardId: string | null) {
     setIsAuthenticated(false)
   }, [boardId])
 
-  return { isAuthenticated, isLoading, checkFailed, unlock, lock }
+  const setPasswordRequired = useCallback((required: boolean) => {
+    setRequiresPassword(required)
+  }, [])
+
+  return {
+    isAuthenticated,
+    isLoading,
+    checkFailed,
+    requiresPassword,
+    unlock,
+    lock,
+    setPasswordRequired,
+  }
 }
