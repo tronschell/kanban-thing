@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Pencil, Plus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Button, IconButton, Modal, ModalFooter, Textarea } from '@/components/ui'
@@ -28,6 +28,7 @@ export default function BoardBrief({ boardId }: { boardId: string }) {
   const [isSaving, setIsSaving] = useState(false)
   const [draft, setDraft] = useState('')
   const [saveError, setSaveError] = useState('')
+  const briefRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -53,6 +54,10 @@ export default function BoardBrief({ boardId }: { boardId: string }) {
     }
   }, [boardId, supabase])
 
+  useEffect(() => {
+    if (saveError === 'Brief is required' && !isPreview) briefRef.current?.focus()
+  }, [isPreview, saveError])
+
   const toggleCollapsed = () => {
     const next = !isCollapsed
     setIsCollapsed(next)
@@ -68,6 +73,12 @@ export default function BoardBrief({ boardId }: { boardId: string }) {
   }
 
   const save = async () => {
+    if (!draft.trim()) {
+      setSaveError('Brief is required')
+      setIsPreview(false)
+      return
+    }
+
     setIsSaving(true)
     setSaveError('')
 
@@ -156,14 +167,20 @@ export default function BoardBrief({ boardId }: { boardId: string }) {
         ) : (
           <Textarea
             id="board-brief-text"
+            ref={briefRef}
             rows={8}
             maxLength={BRIEF_MAX_LENGTH}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value)
+              if (saveError) setSaveError('')
+            }}
+            aria-invalid={Boolean(saveError)}
+            aria-describedby="board-brief-error"
             placeholder="what this board is for, what the columns mean, who to ask"
           />
         )}
-        <p className="mt-1 min-h-4 text-xs text-danger" role="alert">
+        <p id="board-brief-error" className="mt-1 min-h-4 text-xs text-danger" role="alert">
           {saveError}
         </p>
 

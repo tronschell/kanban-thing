@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Input, Modal, ModalFooter } from '@/components/ui'
 
 interface ColumnEditorProps {
@@ -18,15 +18,24 @@ export default function ColumnEditor({
 }: ColumnEditorProps) {
   const [name, setName] = useState(initialName)
   const [isSaving, setIsSaving] = useState(false)
+  const [nameError, setNameError] = useState('')
+  const nameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (isOpen) setName(initialName)
+    if (isOpen) {
+      setName(initialName)
+      setNameError('')
+    }
   }, [isOpen, initialName])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = name.trim()
-    if (!trimmed) return
+    if (!trimmed) {
+      setNameError('Column name is required')
+      nameRef.current?.focus()
+      return
+    }
 
     setIsSaving(true)
     try {
@@ -50,16 +59,25 @@ export default function ColumnEditor({
         </label>
         <Input
           id="column-name"
+          ref={nameRef}
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value)
+            if (nameError) setNameError('')
+          }}
           placeholder="Column name"
+          aria-invalid={Boolean(nameError)}
+          aria-describedby="column-name-error"
           autoFocus
         />
+        <p id="column-name-error" role="alert" className="mt-1 min-h-4 text-xs text-danger">
+          {nameError}
+        </p>
         <ModalFooter>
           <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={isSaving || !name.trim()}>
+          <Button type="submit" variant="primary" disabled={isSaving}>
             {initialName ? 'Rename' : 'Add column'}
           </Button>
         </ModalFooter>

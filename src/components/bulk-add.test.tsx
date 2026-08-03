@@ -48,4 +48,18 @@ describe('BulkAdd', () => {
     fireEvent.click(submit)
     expect(onSave).not.toHaveBeenCalled()
   })
+
+  it('reports an empty list inline and keeps focus on the cards field', () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    render(<BulkAdd isOpen columns={columns} onSave={onSave} onClose={() => {}} />)
+
+    const cards = screen.getByLabelText('Cards')
+    fireEvent.click(screen.getByRole('button', { name: 'Add 0 cards' }))
+
+    expect(screen.getByText('Enter at least one card')).toBeTruthy()
+    expect(cards.getAttribute('aria-invalid')).toBe('true')
+    expect(cards.getAttribute('aria-describedby')).toBe('bulk-summary bulk-lines-error')
+    expect(document.activeElement).toBe(cards)
+    expect(onSave).not.toHaveBeenCalled()
+  })
 })

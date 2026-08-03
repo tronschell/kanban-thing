@@ -86,6 +86,12 @@ export function TerminalInterface({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.currentTarget.form?.requestSubmit()
+      return
+    }
+
     if (e.key === 'Tab') {
       e.preventDefault()
       const { prefix, matches } = completionsFor(input)

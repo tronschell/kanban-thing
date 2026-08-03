@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Ban } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Button, IconButton, Input, Modal, ModalFooter, Textarea } from '@/components/ui'
@@ -8,6 +8,8 @@ import DueDatePicker from '@/components/due-date-picker'
 import { dayToDueDate, dueDateToDay } from '@/lib/date-utils'
 import { LABEL_COLORS, LABEL_COLOR_NAMES } from '@/lib/colors'
 import { cn } from '@/lib/utils'
+
+const CUSTOM_COLOR_PATTERN = /^#(?:[A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/
 
 interface CardEditorProps {
   isOpen: boolean
@@ -43,6 +45,9 @@ export default function CardEditor({
   const [isPreview, setIsPreview] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [titleError, setTitleError] = useState('')
+  const [colorError, setColorError] = useState('')
+  const titleRef = useRef<HTMLInputElement>(null)
+  const colorRef = useRef<HTMLInputElement>(null)
 
   // initialData is rebuilt by the parent on every render, so opening is the only safe trigger.
   useEffect(() => {
@@ -54,6 +59,7 @@ export default function CardEditor({
     setDueDate(initialData?.due_date ? dueDateToDay(initialData.due_date) : '')
     setIsPreview(false)
     setTitleError('')
+    setColorError('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
@@ -62,6 +68,14 @@ export default function CardEditor({
 
     if (!title.trim()) {
       setTitleError('Title is required')
+      titleRef.current?.focus()
+      return
+    }
+
+    const normalizedColor = color.trim()
+    if (normalizedColor && !CUSTOM_COLOR_PATTERN.test(normalizedColor)) {
+      setColorError('Colour must be a 3- or 6-digit hex value')
+      colorRef.current?.focus()
       return
     }
 
@@ -70,7 +84,7 @@ export default function CardEditor({
       await onSave({
         title: title.trim(),
         description,
-        color: color || null,
+        color: normalizedColor || null,
         due_date: dueDate ? dayToDueDate(dueDate) : null,
       })
       onClose()
@@ -93,6 +107,7 @@ export default function CardEditor({
             </label>
             <Input
               id="card-title"
+              ref={titleRef}
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value)
@@ -137,14 +152,19 @@ export default function CardEditor({
           </div>
 
           <div>
-            <span className="block text-xs font-medium text-muted mb-1.5">Colour</span>
+            <label htmlFor="card-color" className="block text-xs font-medium text-muted mb-1.5">
+              Colour
+            </label>
             <div role="radiogroup" aria-label="Card colour" className="flex items-center gap-1">
               <IconButton
                 role="radio"
                 aria-checked={color === ''}
                 label="No colour"
                 size="sm"
-                onClick={() => setColor('')}
+                onClick={() => {
+                  setColor('')
+                  setColorError('')
+                }}
                 className={cn(color === '' && 'bg-surface-active')}
                 icon={<Ban />}
               />
@@ -155,7 +175,10 @@ export default function CardEditor({
                   aria-checked={color === swatch}
                   label={LABEL_COLOR_NAMES[swatch]}
                   size="sm"
-                  onClick={() => setColor(swatch)}
+                  onClick={() => {
+                    setColor(swatch)
+                    setColorError('')
+                  }}
                   className={cn(color === swatch && 'bg-surface-active')}
                   icon={
                     <span
@@ -168,12 +191,20 @@ export default function CardEditor({
             </div>
             <Input
               id="card-color"
+              ref={colorRef}
               value={color}
-              onChange={(e) => setColor(e.target.value)}
+              onChange={(e) => {
+                setColor(e.target.value)
+                if (colorError) setColorError('')
+              }}
               className="mt-1.5"
               placeholder="Custom colour, e.g. #30a46c. Leave empty for none"
-              pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+              aria-invalid={Boolean(colorError)}
+              aria-describedby="card-color-error"
             />
+            <p id="card-color-error" role="alert" className="mt-1 min-h-4 text-xs text-danger">
+              {colorError}
+            </p>
           </div>
 
           <div>

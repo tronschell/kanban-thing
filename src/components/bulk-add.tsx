@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button, Modal, ModalFooter, Select, Textarea } from '@/components/ui'
 
 const MAX_BULK_CARDS = 200
@@ -28,6 +28,8 @@ export default function BulkAdd({ isOpen, onClose, columns, onSave }: BulkAddPro
   const [selectedColumnId, setSelectedColumnId] = useState('')
   const [text, setText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [listError, setListError] = useState('')
+  const textRef = useRef<HTMLTextAreaElement>(null)
 
   const columnId = columns.some((column) => column.id === selectedColumnId)
     ? selectedColumnId
@@ -39,7 +41,12 @@ export default function BulkAdd({ isOpen, onClose, columns, onSave }: BulkAddPro
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!columnId || titles.length === 0 || isSaving) return
+    if (!columnId || isSaving) return
+    if (titles.length === 0) {
+      setListError('Enter at least one card')
+      textRef.current?.focus()
+      return
+    }
 
     setIsSaving(true)
     try {
@@ -78,11 +85,16 @@ export default function BulkAdd({ isOpen, onClose, columns, onSave }: BulkAddPro
         </label>
         <Textarea
           id="bulk-lines"
+          ref={textRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value)
+            if (listError) setListError('')
+          }}
           placeholder="One card per line"
           rows={6}
-          aria-describedby="bulk-summary"
+          aria-invalid={Boolean(listError)}
+          aria-describedby="bulk-summary bulk-lines-error"
           autoFocus
         />
 
@@ -99,12 +111,15 @@ export default function BulkAdd({ isOpen, onClose, columns, onSave }: BulkAddPro
             <span className="text-danger"> Only the first {MAX_BULK_CARDS} lines will be added.</span>
           )}
         </p>
+        <p id="bulk-lines-error" role="alert" className="mt-1 min-h-4 text-xs text-danger">
+          {listError}
+        </p>
 
         <ModalFooter>
           <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={isSaving || titles.length === 0 || !columnId}>
+          <Button type="submit" variant="primary" disabled={isSaving || !columnId}>
             {titles.length === 1 ? 'Add 1 card' : `Add ${titles.length} cards`}
           </Button>
         </ModalFooter>
